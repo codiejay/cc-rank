@@ -31,6 +31,12 @@ export function dashboardHtml(code: string | null): string {
   .rank { width: 40px; color: #7d8590; }
   .medal { font-size: 18px; }
   .name { font-weight: 600; }
+  .streak { margin-left: 8px; font-size: 12px; font-weight: 600; color: #f0883e;
+            background: rgba(240,136,62,.12); padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+  .delta { margin-left: 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .delta.up { color: #3fb950; }
+  .delta.down { color: #f85149; }
+  .delta.same { color: #7d8590; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .score { color: #d29922; font-weight: 700; }
   .muted { color: #7d8590; }
@@ -202,9 +208,16 @@ export function dashboardHtml(code: string | null): string {
       '<button class="tab '+(mode==='today'?'active':'')+'" onclick="setMode(\\'today\\')">today</button>' +
       '</div>';
     const body = rows.length ? rows.map(function(r){
+      var streak = r.streak >= 2 ? '<span class="streak">🔥 '+r.streak+'d</span>' : '';
+      var delta = '';
+      if (r.delta != null) {
+        if (r.delta > 0) delta = '<span class="delta up" title="up '+r.delta+' since yesterday">▲'+r.delta+'</span>';
+        else if (r.delta < 0) delta = '<span class="delta down" title="down '+(-r.delta)+' since yesterday">▼'+(-r.delta)+'</span>';
+        else delta = '<span class="delta same" title="no change since yesterday">–</span>';
+      }
       return '<tr>' +
         '<td class="rank medal">'+medal(r.rank)+'</td>' +
-        '<td class="name">'+esc(r.name)+'</td>' +
+        '<td class="name">'+esc(r.name)+streak+delta+'</td>' +
         '<td class="num muted">'+r.prompts+'</td>' +
         '<td class="num muted">'+r.edits+'</td>' +
         '<td class="num score">'+r.score+'</td>' +

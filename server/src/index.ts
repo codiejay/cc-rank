@@ -186,7 +186,7 @@ app.get("/api/rooms/:code", async (c) => {
   const standings = async (dayFilter?: string) => {
     const where = dayFilter ? "AND e.day = ?" : "";
     const sql = `
-      SELECT p.name AS name,
+      SELECT p.id AS id, p.name AS name,
              COALESCE(SUM(CASE WHEN e.kind='prompt' THEN 1 ELSE 0 END), 0) AS prompts,
              COALESCE(SUM(CASE WHEN e.kind='edit'   THEN 1 ELSE 0 END), 0) AS edits,
              COALESCE(SUM(CASE WHEN e.kind='edit'   THEN e.value ELSE 0 END), 0) AS lines
@@ -199,6 +199,7 @@ app.get("/api/rooms/:code", async (c) => {
     const rows = await c.env.DB.prepare(sql).bind(...binds).all();
     return (rows.results as any[]).map((r, i) => ({
       rank: i + 1,
+      id: r.id,
       name: r.name,
       prompts: r.prompts,
       edits: r.edits,
@@ -207,10 +208,68 @@ app.get("/api/rooms/:code", async (c) => {
     }));
   };
 
+  // ---- daily-winner streaks + rank movement vs yesterday -------------------
+  // Everything below is derived from the events already stored; no new schema.
+  const players = (await c.env.DB.prepare(
+    "SELECT id, created_at FROM players WHERE room_code = ?"
+  ).bind(code).all()).results as { id: string; created_at: number }[];
+  const daily = (await c.env.DB.prepare(
+    "SELECT day, player_id AS id, COUNT(*) AS score FROM events WHERE room_code = ? GROUP BY day, player_id"
+  ).bind(code).all()).results as { day: string; id: string; score: number }[];
+
+  const createdAt = new Map(players.map((p) => [p.id, p.created_at]));
+  const byDay = new Map<string, { id: string; score: number }[]>();
+  for (const r of daily) {
+    if (!byDay.has(r.day)) byDay.set(r.day, []);
+    byDay.get(r.day)!.push({ id: r.id, score: r.score });
+  }
+  const days = [...byDay.keys()].sort().reverse(); // most recent first
+
+  // Winner per day (ties broken by who joined first, matching the board order).
+  const winnerByDay = new Map<string, string>();
+  for (const d of days) {
+    const arr = byDay.get(d)!.slice().sort(
+      (a, b) => b.score - a.score || (createdAt.get(a.id) || 0) - (createdAt.get(b.id) || 0)
+    );
+    if (arr.length) winnerByDay.set(d, arr[0].id);
+  }
+  // Current streak = consecutive most-recent days this player was the winner.
+  const streak = new Map<string, number>();
+  for (const p of players) {
+    let s = 0;
+    for (const d of days) { if (winnerByDay.get(d) === p.id) s++; else break; }
+    streak.set(p.id, s);
+  }
+
+  // Rank movement: today's all-time rank vs rank as of end of yesterday.
+  const now = Date.now();
+  const yesterday = utcDay(now - 86400000);
+  const startOfToday = Date.parse(utcDay(now) + "T00:00:00Z");
+  const cumYesterday = new Map<string, number>();
+  for (const r of daily) {
+    if (r.day <= yesterday) cumYesterday.set(r.id, (cumYesterday.get(r.id) || 0) + r.score);
+  }
+  const yRank = new Map<string, number>();
+  players
+    .filter((p) => p.created_at < startOfToday) // only players who existed yesterday
+    .sort((a, b) => (cumYesterday.get(b.id) || 0) - (cumYesterday.get(a.id) || 0) || a.created_at - b.created_at)
+    .forEach((p, i) => yRank.set(p.id, i + 1));
+
+  const enrich = (rows: any[]) =>
+    rows.map((r) => {
+      const prev = yRank.get(r.id);
+      return {
+        ...r,
+        streak: streak.get(r.id) || 0,
+        // +N = climbed N spots since yesterday, -N = dropped, null = new/no history
+        delta: prev == null ? null : prev - r.rank,
+      };
+    });
+
   return json(c, {
     room,
-    allTime: await standings(),
-    today: await standings(utcDay(Date.now())),
+    allTime: enrich(await standings()),
+    today: enrich(await standings(utcDay(now))),
   });
 });
 
