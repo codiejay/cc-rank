@@ -65,7 +65,10 @@ function wireClaude() {
   const ensure = (event, matcher, arg) => {
     s.hooks[event] ||= [];
     const cmd = hookCmd(arg);
-    const already = JSON.stringify(s.hooks[event]).includes('hook.mjs" ' + arg);
+    // Compare actual command strings (JSON.stringify escaping broke substring matches).
+    const already = s.hooks[event].some(
+      (g) => (g.hooks || []).some((h) => h.command === cmd)
+    );
     if (already) return;
     const entry = { hooks: [{ type: "command", command: cmd }] };
     if (matcher) entry.matcher = matcher;
@@ -79,7 +82,11 @@ function wireClaude() {
   let wrapped = null;
   const existing = s.statusLine;
   if (existing && existing.command && !existing.command.includes("statusline.mjs")) {
-    wrapped = existing.command; // our statusline will call this first, then append the rank
+    wrapped = existing.command; // first install: capture the user's real statusline
+  } else if (existing && existing.command) {
+    // Re-join: our statusline is already installed. Don't treat it as the
+    // user's original — keep whatever original we captured on the first join.
+    wrapped = loadConfig()?.wrappedStatusLine || null;
   }
   s.statusLine = { type: "command", command: ourStatus };
   return { settings: s, wrapped };
@@ -105,23 +112,46 @@ async function joinRoom() {
   if (!code) return fail("Usage: ccrank join <ROOM_CODE> --name YOUR_NAME");
   if (!name) return fail("Please pass --name YOUR_NAME");
 
-  const res = await api(`/api/rooms/${code}/join`, "POST", { name });
+  const prev = loadConfig();
+  const rejoining = prev?.token && prev.roomCode === code;
+  // Already in this room? Reuse the same player/token so counts aren't split
+  // and no duplicate player appears on the board. Otherwise create a new one.
+  const res = rejoining
+    ? { token: prev.token, playerId: prev.playerId, name: prev.name,
+        roomCode: prev.roomCode, roomName: prev.roomName }
+    : await api(`/api/rooms/${code}/join`, "POST", { name });
+  const useServer = rejoining ? prev.server : server;
+
   installScripts();
   const { settings, wrapped } = wireClaude();
 
   saveConfig({
-    server, token: res.token, playerId: res.playerId,
+    server: useServer, token: res.token, playerId: res.playerId,
     name: res.name, roomCode: res.roomCode, roomName: res.roomName,
     wrappedStatusLine: wrapped || null,
   });
   mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
   writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
 
-  console.log(`\n  ${c.g("✓")} Joined ${c.b(res.roomName)} as ${c.y(res.name)}`);
+  const verb = rejoining ? "Re-synced" : "Joined";
+  console.log(`\n  ${c.g("✓")} ${verb} ${c.b(res.roomName)} as ${c.y(res.name)}`);
   console.log(`  Your prompts & edits now count toward the leaderboard.`);
-  console.log(`  Standings: ${c.dim(server + "/r/" + code)}`);
+  console.log(`  Standings: ${c.dim(useServer + "/r/" + code)}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
+}
+
+// Pull the latest hook/statusline scripts for your current room — no re-join,
+// same player, counts untouched.
+async function update() {
+  const cfg = loadConfig();
+  if (!cfg?.token) return fail("Not in a room yet. Run: ccrank join <CODE> --name YOU");
+  installScripts();
+  const { settings, wrapped } = wireClaude();
+  saveConfig({ ...cfg, wrappedStatusLine: wrapped ?? cfg.wrappedStatusLine ?? null });
+  writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
+  console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts for ${c.b(cfg.roomName)}.`);
+  console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
 }
 
 async function status() {
@@ -161,6 +191,7 @@ function help() {
 
   ${c.y("ccrank create")} --name "Room name"        create a room, get a code
   ${c.y("ccrank join")} <CODE> --name YOU           join a room + start counting
+  ${c.y("ccrank update")}                           pull the latest scripts (no re-join)
   ${c.y("ccrank status")}                           show your current rank
   ${c.y("ccrank leave")}                            remove the hooks
 
@@ -170,5 +201,5 @@ function help() {
 `);
 }
 
-const table = { create, join: joinRoom, status, leave, help };
+const table = { create, join: joinRoom, update, status, leave, help };
 Promise.resolve((table[cmd] || help)()).catch((e) => fail(e.message));
