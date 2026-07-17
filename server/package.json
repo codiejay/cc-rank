@@ -1,0 +1,21 @@
+{
+  "name": "ccrank-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create ccrank",
+    "db:init": "wrangler d1 execute ccrank --remote --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute ccrank --local --file=./schema.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^3.95.0"
+  }
+}

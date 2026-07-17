@@ -1,0 +1,17 @@
+{
+  "name": "ccrank",
+  "version": "0.1.0",
+  "description": "A Claude Code leaderboard — rank you and your friends by prompts & edits, right in the terminal.",
+  "type": "module",
+  "bin": {
+    "ccrank": "bin/ccrank.mjs"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

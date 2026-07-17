@@ -1,0 +1,9 @@
+name = "ccrank"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# After you run `wrangler d1 create ccrank`, paste the printed database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "ccrank"
+database_id = "REPLACE_WITH_ID_FROM_d1_create"
