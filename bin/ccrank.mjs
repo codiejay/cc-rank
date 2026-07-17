@@ -1,8 +1,16 @@
 #!/usr/bin/env node
-// ccrank CLI — create/join rooms and (un)install the Claude Code hooks.
-// Zero dependencies, no build step.
+// ccrank CLI — sign in with GitHub, create/join rooms, and (un)install the
+// Claude Code hooks. Zero dependencies, no build step.
+//
+// USER-PRIMARY model: your GitHub account is the identity; all your prompts
+// and edits form ONE global stream. Rooms are just groupings you're a member of.
+//
+// Identity is REAL GitHub auth: we get a GitHub access token (from the gh CLI
+// if you're signed in, else GitHub's device flow) and the server verifies it
+// with api.github.com before minting a session. No username squatting possible.
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,8 +22,11 @@ const CFG = join(CC_DIR, "config.json");
 const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 
 // Default server. Overridable with --server <url> or CCRANK_SERVER env.
-// >>> After you deploy the Worker, replace this with your *.workers.dev URL. <<<
 const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.ccrank.workers.dev";
+
+// GitHub OAuth app client id for the device flow (public by design, not a
+// secret — it only identifies the "ccrank" OAuth app). Overridable for forks.
+const GH_CLIENT_ID = process.env.CCRANK_GH_CLIENT_ID || "Ov23lipQUJVMvnQ2gTh2";
 
 // ---- tiny arg parsing ----------------------------------------------------
 const [cmd, ...rest] = process.argv.slice(2);
@@ -43,6 +54,101 @@ async function api(path, method = "GET", body) {
 
 function loadConfig() { try { return JSON.parse(readFileSync(CFG, "utf8")); } catch { return null; } }
 function saveConfig(cfg) { mkdirSync(CC_DIR, { recursive: true }); writeFileSync(CFG, JSON.stringify(cfg, null, 2)); }
+
+// ---- GitHub auth ---------------------------------------------------------
+
+// Shortcut: you're signed into the gh CLI — its token identifies you without
+// the browser step. We OFFER it; device flow remains the canonical path.
+function ghCliToken() {
+  try {
+    const out = execSync("gh auth token", { stdio: ["ignore", "pipe", "ignore"], timeout: 4000 })
+      .toString().trim();
+    return /^(gho|ghp|ghu|github_pat)_[A-Za-z0-9_]+$/.test(out) ? out : null;
+  } catch { return null; }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One y/n question on the terminal; non-interactive runs take the default.
+async function askYesNo(question, def = true) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return def;
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const a = (await rl.question(`  ${question} ${def ? "[Y/n]" : "[y/N]"} `)).trim().toLowerCase();
+    return a === "" ? def : a === "y" || a === "yes";
+  } finally { rl.close(); }
+}
+
+// GitHub device flow — "open github.com/login/device, type this code".
+// scope read:user: public profile only; can't touch code, repos, or orgs.
+async function deviceFlowToken() {
+  const start = await (await fetch("https://github.com/login/device/code", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ client_id: GH_CLIENT_ID, scope: "read:user" }),
+  })).json();
+  if (!start?.device_code) { fail("Could not start GitHub sign-in. Try again."); return null; }
+
+  console.log(`\n  Sign in with GitHub to prove who you are:`);
+  console.log(`    1. Open  ${c.b(start.verification_uri || "https://github.com/login/device")}`);
+  console.log(`    2. Enter ${c.y(start.user_code)}`);
+  console.log(c.dim(`  Waiting for you to authorize (Ctrl-C to abort)…`));
+
+  let interval = (start.interval || 5) * 1000;
+  const deadline = Date.now() + Math.min((start.expires_in || 900) * 1000, 10 * 60 * 1000);
+  while (Date.now() < deadline) {
+    await sleep(interval);
+    const res = await (await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({
+        client_id: GH_CLIENT_ID,
+        device_code: start.device_code,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
+    })).json().catch(() => ({}));
+    if (res.access_token) return res.access_token;
+    if (res.error === "authorization_pending") continue;
+    if (res.error === "slow_down") { interval += 5000; continue; }
+    if (res.error === "access_denied") { fail("GitHub sign-in was denied."); return null; }
+    if (res.error === "expired_token") break;
+  }
+  fail("GitHub sign-in timed out. Run the command again.");
+  return null;
+}
+
+// Ensure we have a GitHub-verified session: reuse the saved one, else sign in.
+// Returns the config object (NOT yet saved), or null on failure.
+async function ensureUser({ force = false } = {}) {
+  const prev = loadConfig();
+  if (!force && prev?.token && prev?.login) return { ...prev, server: prev.server || server };
+
+  let ghToken = null;
+  const cliToken = ghCliToken();
+  if (cliToken && (await askYesNo("You're signed into the gh CLI — sign in to ccrank with it (skips the browser step)?"))) {
+    ghToken = cliToken;
+  }
+  if (!ghToken) ghToken = await deviceFlowToken();
+  if (!ghToken) return null;
+  try {
+    const res = await api("/api/login", "POST", { ghToken });
+    return {
+      server, token: res.token, login: res.login, avatar: res.avatar || null,
+      reclaimed: !!res.reclaimed,
+      roomCode: prev?.roomCode || null, roomName: prev?.roomName || null,
+      wrappedStatusLine: prev?.wrappedStatusLine || null,
+    };
+  } catch (e) {
+    if (e.message === "github_rejected") {
+      fail(`GitHub didn't accept that sign-in. Try again (or "gh auth login" first if you use the gh CLI).`);
+      return null;
+    }
+    throw e;
+  }
+}
+
+// ---- install plumbing ----------------------------------------------------
 
 // Copy hook.mjs + statusline.mjs into ~/.ccrank so Claude Code can run them.
 function installScripts() {
@@ -84,22 +190,48 @@ function wireClaude() {
   if (existing && existing.command && !existing.command.includes("statusline.mjs")) {
     wrapped = existing.command; // first install: capture the user's real statusline
   } else if (existing && existing.command) {
-    // Re-join: our statusline is already installed. Don't treat it as the
-    // user's original — keep whatever original we captured on the first join.
+    // Re-run: our statusline is already installed. Don't treat it as the
+    // user's original — keep whatever original we captured the first time.
     wrapped = loadConfig()?.wrappedStatusLine || null;
   }
   s.statusLine = { type: "command", command: ourStatus };
   return { settings: s, wrapped };
 }
 
+function finishInstall(cfg) {
+  installScripts();
+  const { settings, wrapped } = wireClaude();
+  saveConfig({ ...cfg, wrappedStatusLine: wrapped ?? cfg.wrappedStatusLine ?? null });
+  mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
+  writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
+  return wrapped;
+}
+
 // ---- commands ------------------------------------------------------------
+
+// Sign in with GitHub and get on the GLOBAL board — no room needed. Also the
+// "new machine" path: GitHub itself is the recovery, so just log in again.
+async function login() {
+  const cfg = await ensureUser({ force: true });
+  if (!cfg) return;
+  const wrapped = finishInstall(cfg);
+  console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
+  console.log(`  You're on the global board. Every prompt you send and file edit Claude`);
+  console.log(`  makes scores you a point. Only counts leave your machine — ${c.b("never your code")}.`);
+  console.log(`\n  Global board:  ${c.y(cfg.server + "/")}`);
+  if (cfg.roomCode) console.log(`  Your room:     ${c.dim(cfg.server + "/r/" + cfg.roomCode)}`);
+  else console.log(`  Want a friends room? ${c.dim("ccrank create --name \"Room\"  ·  ccrank join <CODE>")}`);
+  if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
+  console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
+}
 
 async function create() {
   const name = flags.name || pos[0] || "My room";
-  const owner = flags.by || null; // shown to friends when they join: "NAME invited you"
+  const cfg = await ensureUser();
+  if (!cfg) return;
   let created;
   try {
-    created = await api("/api/rooms", "POST", { name, owner });
+    created = await api("/api/rooms", "POST", { token: cfg.token, name });
   } catch (e) {
     if (e.message === "room_name_taken") {
       console.error(`\n  A room named ${c.y(name)} already exists — room names must be unique.`);
@@ -110,111 +242,74 @@ async function create() {
     throw e;
   }
   const { code } = created;
-  console.log(`\n  ${c.g("✓")} Room created: ${c.b(name)}${owner ? c.dim(` (by ${owner})`) : ""}`);
+  // Creating auto-joins you, so wire everything up right away.
+  const wrapped = finishInstall({ ...cfg, roomCode: code, roomName: name });
+
+  console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
+  console.log(`  ${c.g("✓")} Room created: ${c.b(name)} — you're in it.`);
   console.log(`  Code:      ${c.y(code)}`);
-  console.log(`  Dashboard: ${c.dim(server + "/r/" + code)}\n`);
-  console.log(`  Invite friends — each of them runs:`);
-  console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code} --name THEIR_NAME`)}\n`);
-  console.log(`  Join it yourself now:`);
-  console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code} --name YOU`)}\n`);
+  console.log(`  Dashboard: ${c.dim(cfg.server + "/r/" + code)}`);
+  console.log(`\n  Invite friends — each of them runs:`);
+  console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code}`)}\n`);
+  if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
+  console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
 }
 
 async function joinRoom() {
   const code = (pos[0] || flags.code || "").toUpperCase();
-  const name = flags.name || pos[1];
-  if (!code) return fail("Usage: ccrank join <ROOM_CODE> --name YOUR_NAME");
-  if (!name) return fail("Please pass --name YOUR_NAME");
+  if (!code) return fail("Usage: ccrank join <ROOM_CODE>");
 
-  const prev = loadConfig();
-  const rejoining = prev?.token && prev.roomCode === code;
-  // Already in this room? Reuse the same player/token so counts aren't split
-  // and no duplicate player appears on the board. Otherwise create a new one.
+  const cfg = await ensureUser();
+  if (!cfg) return;
   let res;
-  if (rejoining) {
-    res = { token: prev.token, playerId: prev.playerId, name: prev.name,
-            roomCode: prev.roomCode, roomName: prev.roomName };
-  } else {
-    try {
-      res = await api(`/api/rooms/${code}/join`, "POST", { name, recovery: flags.recover || null });
-    } catch (e) {
-      if (e.message === "name_taken") {
-        console.error(`\n  The name ${c.y(name)} is already taken in this room.`);
-        console.error(`  If that's you (new machine or lost config), rejoin with your recovery code:`);
-        console.error(`    ${c.b(`npx github:codiejay/cc-rank join ${code} --name ${name} --recover XXXX-XXXX`)}`);
-        console.error(c.dim(`  (it was printed when you first joined; or run "ccrank recovery" on your old machine)`));
-        console.error(`  Otherwise, just pick a different name.\n`);
-        process.exitCode = 1;
-        return;
-      }
-      throw e;
+  try {
+    res = await api(`/api/rooms/${code}/join`, "POST", { token: cfg.token });
+  } catch (e) {
+    if (e.message === "invalid token") {
+      // Saved session no longer valid (server reset / signed in elsewhere) —
+      // wipe it; GitHub is the recovery, so signing in again fixes everything.
+      saveConfig({ ...cfg, token: null, login: null });
+      return fail(`Your saved session expired. Run "ccrank login" (or this command again) to sign back in with GitHub.`);
     }
+    if (e.message === "room not found") return fail(`No room answers to ${code} — double-check the code.`);
+    throw e;
   }
-  const useServer = rejoining ? prev.server : server;
 
-  installScripts();
-  const { settings, wrapped } = wireClaude();
+  const wrapped = finishInstall({ ...cfg, roomCode: res.roomCode, roomName: res.roomName });
 
-  saveConfig({
-    server: useServer, token: res.token, playerId: res.playerId,
-    name: res.name, roomCode: res.roomCode, roomName: res.roomName,
-    recoveryCode: res.recoveryCode || prev?.recoveryCode || null,
-    wrappedStatusLine: wrapped || null,
-  });
-  mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
-  writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
-
-  const verb = rejoining ? "Re-synced" : res.reclaimed ? "Welcome back to" : "Joined";
-  console.log(`\n  ${c.g("✓")} ${verb} ${c.b(res.roomName)} as ${c.y(res.name)}`);
-  if (res.reclaimed && !rejoining) {
-    console.log(`  Found your existing player — your score carries over from before.`);
-  } else if (!rejoining) {
-    const who = res.owner ? `${c.b(res.owner)} invited you to` : `You're in`;
-    console.log(`  ${who} a friendly Claude Code leaderboard.`);
-    console.log(`  Every prompt you send and file edit Claude makes scores you a point.`);
-    console.log(`  Only counts leave your machine — ${c.b("never your code")}.`);
-  }
-  console.log(`\n  Live standings:  ${c.y(useServer + "/r/" + code)}`);
+  console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
+  console.log(`  ${c.g("✓")} Joined ${c.b(res.roomName)}`);
+  const who = res.owner ? `${c.b(res.owner)} invited you to` : `You're in`;
+  console.log(`  ${who} a friendly Claude Code leaderboard.`);
+  console.log(`  Every prompt you send and file edit Claude makes scores you a point —`);
+  console.log(`  one global score that follows you into every room. Only counts leave`);
+  console.log(`  your machine — ${c.b("never your code")}.`);
+  console.log(`\n  Room board:      ${c.y(cfg.server + "/r/" + code)}`);
+  console.log(`  Global board:    ${c.dim(cfg.server + "/")}`);
   console.log(`  What is ccrank?  ${c.dim("https://github.com/codiejay/cc-rank")}`);
-  if (res.recoveryCode) {
-    console.log(`\n  Recovery code:   ${c.b(res.recoveryCode)}  ${c.dim("(save it — needed to rejoin as " + res.name + " from a new machine)")}`);
-  }
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
 }
 
-// Pull the latest hook/statusline scripts for your current room — no re-join,
-// same player, counts untouched.
+// Pull the latest hook/statusline scripts — no re-auth, same user, counts untouched.
 async function update() {
   const cfg = loadConfig();
-  if (!cfg?.token) return fail("Not in a room yet. Run: ccrank join <CODE> --name YOU");
-  installScripts();
-  const { settings, wrapped } = wireClaude();
-  saveConfig({ ...cfg, wrappedStatusLine: wrapped ?? cfg.wrappedStatusLine ?? null });
-  writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
-  console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts for ${c.b(cfg.roomName)}.`);
+  if (!cfg?.token) return fail("Not signed in yet. Run: ccrank join <CODE>");
+  finishInstall(cfg);
+  console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts.`);
   console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
-}
-
-// Mint a (new) recovery code for the current player — for people who joined
-// before recovery codes existed, or who lost theirs. Requires being signed in.
-async function recovery() {
-  const cfg = loadConfig();
-  if (!cfg?.token) return fail("Not in a room yet. Run: ccrank join <CODE> --name YOU");
-  const { recoveryCode } = await api("/api/recovery", "POST", { token: cfg.token });
-  saveConfig({ ...cfg, recoveryCode });
-  console.log(`\n  ${c.g("✓")} Recovery code for ${c.y(cfg.name)}: ${c.b(recoveryCode)}`);
-  console.log(c.dim(`  Save it. To rejoin from a new machine:`));
-  console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${cfg.roomCode} --name ${cfg.name} --recover ${recoveryCode}`)}\n`);
 }
 
 async function status() {
   const cfg = loadConfig();
-  if (!cfg) return console.log("Not in a room yet. Run: ccrank join <CODE> --name YOU");
+  if (!cfg?.token) return console.log("Not signed in yet. Run: ccrank join <CODE>");
   try {
     const me = await api(`/api/me?token=${encodeURIComponent(cfg.token)}`);
-    console.log(`\n  ${c.b(cfg.roomName)} ${c.dim("· " + cfg.roomCode)}`);
-    console.log(`  ${c.y(cfg.name)} — rank ${c.b("#" + me.rank + "/" + me.total)}, score ${c.g(me.score)}`);
-    console.log(`  ${c.dim(cfg.server + "/r/" + cfg.roomCode)}\n`);
+    console.log(`\n  ${c.y(me.login)} — global rank ${c.b("#" + me.rank + "/" + me.total)}, score ${c.g(me.score)}`);
+    for (const r of me.rooms || []) {
+      console.log(`  ${c.dim("room")} ${c.b(r.name)} ${c.dim("· " + cfg.server + "/r/" + r.code)}`);
+    }
+    console.log(`  ${c.dim(cfg.server + "/")}\n`);
   } catch (e) { fail(e.message); }
 }
 
@@ -240,20 +335,24 @@ function fail(msg) { console.error(`  ${msg}`); process.exitCode = 1; }
 
 function help() {
   console.log(`
-  ${c.b("ccrank")} — a Claude Code leaderboard for you and your friends
+  ${c.b("ccrank")} — a Claude Code leaderboard. Sign in with GitHub, one global
+  score; rooms are just groups of friends viewing the same board.
 
-  ${c.y("ccrank create")} --name "Room name" --by YOU   create a room, get a code
-  ${c.y("ccrank join")} <CODE> --name YOU           join a room + start counting
-  ${c.y("ccrank update")}                           pull the latest scripts (no re-join)
-  ${c.y("ccrank status")}                           show your current rank
-  ${c.y("ccrank recovery")}                         mint a recovery code (rejoin from a new machine)
-  ${c.y("ccrank leave")}                            remove the hooks
+  ${c.y("ccrank login")}                   sign in with GitHub, get on the global board
+  ${c.y("ccrank join")} <CODE>              join a friends room (logs you in if needed)
+  ${c.y("ccrank create")} --name "Room"    create a room, auto-joins you (logs in if needed)
+  ${c.y("ccrank update")}                  pull the latest scripts (no re-auth)
+  ${c.y("ccrank status")}                  show your global rank + rooms
+  ${c.y("ccrank leave")}                   remove the hooks
+
+  Sign-in is GitHub device flow: you enter a one-time code at
+  github.com/login/device (or reuse your gh CLI session if it's signed in).
+  Scope read:user — public profile only. New machine? Just "ccrank login" again.
 
   Options:
-    --server <url>    point at a different ccrank server
-                      (or set CCRANK_SERVER)
+    --server <url>    point at a different ccrank server (or set CCRANK_SERVER)
 `);
 }
 
-const table = { create, join: joinRoom, update, status, recovery, leave, help };
+const table = { login, create, join: joinRoom, update, status, leave, help };
 Promise.resolve((table[cmd] || help)()).catch((e) => fail(e.message));
