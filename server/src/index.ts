@@ -20,6 +20,18 @@ function roomCode(): string {
 function utcDay(ts: number): string {
   return new Date(ts).toISOString().slice(0, 10);
 }
+// Recovery codes prove ownership of a player name when rejoining from a new
+// machine. We store only the sha-256 of the code.
+function recoveryCode(): string {
+  let s = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  for (const b of bytes) s += ALPHABET[b % ALPHABET.length];
+  return s.slice(0, 4) + "-" + s.slice(4);
+}
+async function sha256(s: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 const json = (c: any, data: unknown, status = 200) => c.json(data, status);
 
 // ---- rooms ---------------------------------------------------------------
@@ -28,16 +40,23 @@ const json = (c: any, data: unknown, status = 200) => c.json(data, status);
 app.post("/api/rooms", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const name = String(body?.name ?? "").trim().slice(0, 60) || "Untitled room";
+  const owner = String(body?.owner ?? "").trim().slice(0, 40) || null;
   const now = Date.now();
+
+  // Room names are globally unique (case-insensitive) so a shared code always
+  // maps to one obvious room. Reject a duplicate instead of silently making two.
+  const dup = await c.env.DB.prepare("SELECT code FROM rooms WHERE lower(name) = lower(?)")
+    .bind(name).first();
+  if (dup) return json(c, { error: "room_name_taken" }, 409);
 
   // Retry a couple of times in the (astronomically unlikely) event of a collision.
   for (let i = 0; i < 5; i++) {
     const code = roomCode();
     try {
       await c.env.DB.prepare(
-        "INSERT INTO rooms (code, name, created_at) VALUES (?, ?, ?)"
-      ).bind(code, name, now).run();
-      return json(c, { code, name });
+        "INSERT INTO rooms (code, name, owner, created_at) VALUES (?, ?, ?, ?)"
+      ).bind(code, name, owner, now).run();
+      return json(c, { code, name, owner });
     } catch {
       /* collision, try again */
     }
@@ -52,17 +71,79 @@ app.post("/api/rooms/:code/join", async (c) => {
   const name = String(body?.name ?? "").trim().slice(0, 40);
   if (!name) return json(c, { error: "name is required" }, 400);
 
-  const room = await c.env.DB.prepare("SELECT code, name FROM rooms WHERE code = ?")
-    .bind(code).first<{ code: string; name: string }>();
+  const room = await c.env.DB.prepare("SELECT code, name, owner FROM rooms WHERE code = ?")
+    .bind(code).first<{ code: string; name: string; owner: string | null }>();
   if (!room) return json(c, { error: "room not found" }, 404);
 
-  const id = crypto.randomUUID();
   const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
-  await c.env.DB.prepare(
-    "INSERT INTO players (id, token, room_code, name, created_at) VALUES (?, ?, ?, ?, ?)"
-  ).bind(id, token, code, name, Date.now()).run();
 
-  return json(c, { token, playerId: id, name, roomCode: code, roomName: room.name });
+  // Name already taken in this room? Reclaiming it (new machine / lost config)
+  // requires the recovery code issued when the name was first claimed —
+  // otherwise anyone with the room code could hijack a friend's player.
+  const existing = await c.env.DB.prepare(
+    "SELECT id, recovery FROM players WHERE room_code = ? AND lower(name) = lower(?)"
+  ).bind(code, name).first<{ id: string; recovery: string | null }>();
+  if (existing) {
+    const supplied = String(body?.recovery ?? "").trim().toUpperCase();
+    const ok = existing.recovery && supplied &&
+      (await sha256(supplied)) === existing.recovery;
+    if (!ok) return json(c, { error: "name_taken" }, 409);
+    await c.env.DB.prepare("UPDATE players SET token = ? WHERE id = ?")
+      .bind(token, existing.id).run();
+    return json(c, {
+      token, playerId: existing.id, name, roomCode: code,
+      roomName: room.name, owner: room.owner, reclaimed: true,
+    });
+  }
+
+  const id = crypto.randomUUID();
+  const recovery = recoveryCode();
+  await c.env.DB.prepare(
+    "INSERT INTO players (id, token, room_code, name, recovery, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).bind(id, token, code, name, await sha256(recovery), Date.now()).run();
+
+  return json(c, {
+    token, playerId: id, name, roomCode: code,
+    roomName: room.name, owner: room.owner, reclaimed: false,
+    recoveryCode: recovery,
+  });
+});
+
+// Pre-flight check for CREATE: is this room name still free (globally)?
+app.get("/api/check-room", async (c) => {
+  const name = String(c.req.query("name") ?? "").trim();
+  if (!name) return json(c, { ok: false, reason: "empty" });
+  const dup = await c.env.DB.prepare("SELECT code FROM rooms WHERE lower(name) = lower(?)")
+    .bind(name).first();
+  return json(c, { ok: !dup, reason: dup ? "room_name_taken" : null });
+});
+
+// Pre-flight check for JOIN: does the room exist, and is this name still free in it?
+app.get("/api/rooms/:code/check", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const name = String(c.req.query("name") ?? "").trim();
+  const room = await c.env.DB.prepare("SELECT code, name FROM rooms WHERE code = ?")
+    .bind(code).first<{ code: string; name: string }>();
+  if (!room) return json(c, { ok: false, reason: "room_not_found" });
+  if (!name) return json(c, { ok: true, roomName: room.name });
+  const taken = await c.env.DB.prepare(
+    "SELECT id FROM players WHERE room_code = ? AND lower(name) = lower(?)"
+  ).bind(code, name).first();
+  return json(c, { ok: !taken, reason: taken ? "name_taken" : null, roomName: room.name });
+});
+
+// Issue a (new) recovery code for the calling player. Auth via their token,
+// so only someone already signed in as that player can mint one.
+app.post("/api/recovery", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const token = String(body?.token ?? "");
+  const player = await c.env.DB.prepare("SELECT id FROM players WHERE token = ?")
+    .bind(token).first<{ id: string }>();
+  if (!player) return json(c, { error: "invalid token" }, 401);
+  const code = recoveryCode();
+  await c.env.DB.prepare("UPDATE players SET recovery = ? WHERE id = ?")
+    .bind(await sha256(code), player.id).run();
+  return json(c, { recoveryCode: code });
 });
 
 // Record a batch of events. Auth via the player's token.
@@ -98,8 +179,8 @@ app.post("/api/events", async (c) => {
 // Standings for a room (all-time + today).
 app.get("/api/rooms/:code", async (c) => {
   const code = c.req.param("code").toUpperCase();
-  const room = await c.env.DB.prepare("SELECT code, name FROM rooms WHERE code = ?")
-    .bind(code).first<{ code: string; name: string }>();
+  const room = await c.env.DB.prepare("SELECT code, name, owner FROM rooms WHERE code = ?")
+    .bind(code).first<{ code: string; name: string; owner: string | null }>();
   if (!room) return json(c, { error: "room not found" }, 404);
 
   const standings = async (dayFilter?: string) => {

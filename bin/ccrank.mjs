@@ -15,7 +15,7 @@ const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 
 // Default server. Overridable with --server <url> or CCRANK_SERVER env.
 // >>> After you deploy the Worker, replace this with your *.workers.dev URL. <<<
-const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.jamesakpan.workers.dev";
+const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.ccrank.workers.dev";
 
 // ---- tiny arg parsing ----------------------------------------------------
 const [cmd, ...rest] = process.argv.slice(2);
@@ -96,8 +96,21 @@ function wireClaude() {
 
 async function create() {
   const name = flags.name || pos[0] || "My room";
-  const { code } = await api("/api/rooms", "POST", { name });
-  console.log(`\n  ${c.g("✓")} Room created: ${c.b(name)}`);
+  const owner = flags.by || null; // shown to friends when they join: "NAME invited you"
+  let created;
+  try {
+    created = await api("/api/rooms", "POST", { name, owner });
+  } catch (e) {
+    if (e.message === "room_name_taken") {
+      console.error(`\n  A room named ${c.y(name)} already exists — room names must be unique.`);
+      console.error(`  Pick a different name and try again.\n`);
+      process.exitCode = 1;
+      return;
+    }
+    throw e;
+  }
+  const { code } = created;
+  console.log(`\n  ${c.g("✓")} Room created: ${c.b(name)}${owner ? c.dim(` (by ${owner})`) : ""}`);
   console.log(`  Code:      ${c.y(code)}`);
   console.log(`  Dashboard: ${c.dim(server + "/r/" + code)}\n`);
   console.log(`  Invite friends — each of them runs:`);
@@ -116,10 +129,26 @@ async function joinRoom() {
   const rejoining = prev?.token && prev.roomCode === code;
   // Already in this room? Reuse the same player/token so counts aren't split
   // and no duplicate player appears on the board. Otherwise create a new one.
-  const res = rejoining
-    ? { token: prev.token, playerId: prev.playerId, name: prev.name,
-        roomCode: prev.roomCode, roomName: prev.roomName }
-    : await api(`/api/rooms/${code}/join`, "POST", { name });
+  let res;
+  if (rejoining) {
+    res = { token: prev.token, playerId: prev.playerId, name: prev.name,
+            roomCode: prev.roomCode, roomName: prev.roomName };
+  } else {
+    try {
+      res = await api(`/api/rooms/${code}/join`, "POST", { name, recovery: flags.recover || null });
+    } catch (e) {
+      if (e.message === "name_taken") {
+        console.error(`\n  The name ${c.y(name)} is already taken in this room.`);
+        console.error(`  If that's you (new machine or lost config), rejoin with your recovery code:`);
+        console.error(`    ${c.b(`npx github:codiejay/cc-rank join ${code} --name ${name} --recover XXXX-XXXX`)}`);
+        console.error(c.dim(`  (it was printed when you first joined; or run "ccrank recovery" on your old machine)`));
+        console.error(`  Otherwise, just pick a different name.\n`);
+        process.exitCode = 1;
+        return;
+      }
+      throw e;
+    }
+  }
   const useServer = rejoining ? prev.server : server;
 
   installScripts();
@@ -128,15 +157,27 @@ async function joinRoom() {
   saveConfig({
     server: useServer, token: res.token, playerId: res.playerId,
     name: res.name, roomCode: res.roomCode, roomName: res.roomName,
+    recoveryCode: res.recoveryCode || prev?.recoveryCode || null,
     wrappedStatusLine: wrapped || null,
   });
   mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
   writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
 
-  const verb = rejoining ? "Re-synced" : "Joined";
+  const verb = rejoining ? "Re-synced" : res.reclaimed ? "Welcome back to" : "Joined";
   console.log(`\n  ${c.g("✓")} ${verb} ${c.b(res.roomName)} as ${c.y(res.name)}`);
-  console.log(`  Your prompts & edits now count toward the leaderboard.`);
-  console.log(`  Standings: ${c.dim(useServer + "/r/" + code)}`);
+  if (res.reclaimed && !rejoining) {
+    console.log(`  Found your existing player — your score carries over from before.`);
+  } else if (!rejoining) {
+    const who = res.owner ? `${c.b(res.owner)} invited you to` : `You're in`;
+    console.log(`  ${who} a friendly Claude Code leaderboard.`);
+    console.log(`  Every prompt you send and file edit Claude makes scores you a point.`);
+    console.log(`  Only counts leave your machine — ${c.b("never your code")}.`);
+  }
+  console.log(`\n  Live standings:  ${c.y(useServer + "/r/" + code)}`);
+  console.log(`  What is ccrank?  ${c.dim("https://github.com/codiejay/cc-rank")}`);
+  if (res.recoveryCode) {
+    console.log(`\n  Recovery code:   ${c.b(res.recoveryCode)}  ${c.dim("(save it — needed to rejoin as " + res.name + " from a new machine)")}`);
+  }
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
 }
@@ -152,6 +193,18 @@ async function update() {
   writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
   console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts for ${c.b(cfg.roomName)}.`);
   console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
+}
+
+// Mint a (new) recovery code for the current player — for people who joined
+// before recovery codes existed, or who lost theirs. Requires being signed in.
+async function recovery() {
+  const cfg = loadConfig();
+  if (!cfg?.token) return fail("Not in a room yet. Run: ccrank join <CODE> --name YOU");
+  const { recoveryCode } = await api("/api/recovery", "POST", { token: cfg.token });
+  saveConfig({ ...cfg, recoveryCode });
+  console.log(`\n  ${c.g("✓")} Recovery code for ${c.y(cfg.name)}: ${c.b(recoveryCode)}`);
+  console.log(c.dim(`  Save it. To rejoin from a new machine:`));
+  console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${cfg.roomCode} --name ${cfg.name} --recover ${recoveryCode}`)}\n`);
 }
 
 async function status() {
@@ -189,10 +242,11 @@ function help() {
   console.log(`
   ${c.b("ccrank")} — a Claude Code leaderboard for you and your friends
 
-  ${c.y("ccrank create")} --name "Room name"        create a room, get a code
+  ${c.y("ccrank create")} --name "Room name" --by YOU   create a room, get a code
   ${c.y("ccrank join")} <CODE> --name YOU           join a room + start counting
   ${c.y("ccrank update")}                           pull the latest scripts (no re-join)
   ${c.y("ccrank status")}                           show your current rank
+  ${c.y("ccrank recovery")}                         mint a recovery code (rejoin from a new machine)
   ${c.y("ccrank leave")}                            remove the hooks
 
   Options:
@@ -201,5 +255,5 @@ function help() {
 `);
 }
 
-const table = { create, join: joinRoom, update, status, leave, help };
+const table = { create, join: joinRoom, update, status, recovery, leave, help };
 Promise.resolve((table[cmd] || help)()).catch((e) => fail(e.message));

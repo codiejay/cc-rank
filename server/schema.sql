@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS rooms (
   code       TEXT PRIMARY KEY,      -- short shareable code, e.g. "AB3K9P"
   name       TEXT NOT NULL,
+  owner      TEXT,                  -- display name of whoever created the room
   created_at INTEGER NOT NULL       -- unix ms
 );
 
@@ -11,6 +12,7 @@ CREATE TABLE IF NOT EXISTS players (
   token      TEXT NOT NULL UNIQUE,  -- secret auth token, never exposed in standings
   room_code  TEXT NOT NULL,
   name       TEXT NOT NULL,
+  recovery   TEXT,                  -- sha-256 of the player's recovery code
   created_at INTEGER NOT NULL
 );
 
