@@ -132,7 +132,7 @@ export function dashboardHtml(code: string | null): string {
     const head = code
       ? 'Help me join a ccrank room (a Claude Code leaderboard for friends). Room code: '+code+'.'
       : 'Help me set up ccrank (a Claude Code leaderboard for friends). First ask me one question and wait for my answer: do I want to JOIN an existing room (then ask me for the 6-character room code) or CREATE a new room (then ask me what to call it — and if I defer with something like \\"you pick\\", just pick a short fun room name yourself, no need to ask again)?';
-    return head + '\\nServer: '+S+'\\n\\nFollow these steps exactly, in order:\\n'+
+    return head + '\\nServer: '+S+'\\n\\nWhenever you ask me to pick between fixed options (like JOIN vs CREATE), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name or player name.\\n\\nFollow these steps exactly, in order:\\n'+
       '1. Ask me what player name I want on the leaderboard, and WAIT for my actual reply. Never invent, guess, or auto-fill my PLAYER name — that rule applies only to the player name; a deferred room name you may choose.\\n'+
       '2. If CREATING: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
       '3. If JOINING: verify my player name is free with GET '+S+'/api/rooms/<CODE>/check?name=<NAME, url-encoded>.\\n'+
