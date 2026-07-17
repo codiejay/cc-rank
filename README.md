@@ -1,8 +1,9 @@
 # 🏆 ccrank
 
-A **Claude Code leaderboard** for you and your friends. Create a room, share the
-code, and as everyone uses Claude Code, ccrank ranks who's shipping the most —
-right in the terminal statusline and on a live web dashboard.
+The global **Claude Code leaderboard**. Sign in with GitHub, and every prompt
+you send and file edit Claude makes scores you a point — one global board,
+every ccrank user, live in your terminal statusline and on a web dashboard.
+Want a board that's just your crew? Create a private room.
 
 It counts **prompts** and **file edits** via Claude Code's own hooks. It sends
 **only counts and metadata — never your code**.
@@ -12,6 +13,45 @@ It counts **prompts** and **file edits** via Claude Code's own hooks. It sends
 🥈  ada      prompts 111   edits 80   score 191
 🥉  linus    prompts  76   edits 60   score 136
 ```
+
+---
+
+## Get on the board
+
+```bash
+npx github:codiejay/cc-rank login
+```
+
+Sign in with GitHub (device flow: enter a one-time code at
+`github.com/login/device`, or reuse your `gh` CLI session), restart Claude
+Code, and your prompts and edits start counting on the global board. Check
+your rank anytime with `ccrank status` or on the dashboard at
+`https://<the-server>/`.
+
+New machine? Just `ccrank login` again — GitHub is your identity, so there's
+nothing else to recover.
+
+To stop: `npx github:codiejay/cc-rank leave`.
+
+> The client defaults to the maintainer's deployed server. To point at your own,
+> set `CCRANK_SERVER=https://your-worker.workers.dev` or pass `--server`.
+
+---
+
+## Rooms (optional)
+
+Same global scores, filtered to your people — friends, teammates, coworkers.
+
+```bash
+# create one — prints a 6-character code to share
+npx github:codiejay/cc-rank create --name "The Squad"
+
+# everyone else joins with the code (signs them in if needed)
+npx github:codiejay/cc-rank join ABC123
+```
+
+The room board lives at `https://<the-server>/r/ABC123`. Your score is the
+same everywhere — rooms are just a private view of the global board.
 
 ---
 
@@ -25,7 +65,7 @@ Claude Code fires shell hooks on lifecycle events. ccrank installs two tiny ones
 | `PostToolUse` (Edit/Write/MultiEdit) | every file change | +1 edit (weighted by lines) |
 
 Each hook POSTs a count to a small **Cloudflare Worker** (free tier, always-on),
-which aggregates per room and serves the standings. A statusline script shows
+which aggregates per user and serves the standings. A statusline script shows
 your live rank; if you already had a statusline, ccrank runs it first and just
 appends the rank so nothing is lost.
 
@@ -38,24 +78,6 @@ your machine                          the server (Cloudflare Worker + D1)
 └────────────────────┘               │ /r/:code     (dashboard)  │
                                      └──────────────────────────┘
 ```
-
----
-
-## Play (for your friends)
-
-Once someone has created a room and shared the code:
-
-```bash
-npx github:codiejay/cc-rank join ABC123 --name YOUR_NAME
-```
-
-That's it — restart Claude Code and your prompts/edits start counting. Check
-standings anytime at `https://<the-server>/r/ABC123` or run `ccrank status`.
-
-To stop: `npx github:codiejay/cc-rank leave`.
-
-> The client defaults to the maintainer's deployed server. To point at your own,
-> set `CCRANK_SERVER=https://your-worker.workers.dev` or pass `--server`.
 
 ---
 
@@ -83,10 +105,10 @@ Then set that URL as the client default: edit `DEFAULT_SERVER` in
 [`bin/ccrank.mjs`](bin/ccrank.mjs), or just have everyone export
 `CCRANK_SERVER=https://ccrank.<you>.workers.dev`.
 
-Create the first room:
+Get on your board:
 
 ```bash
-CCRANK_SERVER=https://ccrank.<you>.workers.dev npx github:codiejay/cc-rank create --name "The Squad"
+CCRANK_SERVER=https://ccrank.<you>.workers.dev npx github:codiejay/cc-rank login
 ```
 
 ---
@@ -94,9 +116,11 @@ CCRANK_SERVER=https://ccrank.<you>.workers.dev npx github:codiejay/cc-rank creat
 ## Commands
 
 ```
-ccrank create --name "Room name"     create a room, get a share code
-ccrank join <CODE> --name YOU        join a room + start counting
-ccrank status                        show your current rank
+ccrank login                         sign in with GitHub, get on the global board
+ccrank join <CODE>                   join a private room (signs you in if needed)
+ccrank create --name "Room name"     create a room, auto-joins you
+ccrank update                        pull the latest scripts (no re-auth)
+ccrank status                        show your global rank + rooms
 ccrank leave                         remove the hooks
 ```
 
@@ -106,9 +130,11 @@ ccrank leave                         remove the hooks
 
 - Hooks send **counts and metadata only** (`prompt`/`edit`, a line count). Your
   prompts, file contents, and diffs **never leave your machine**.
-- Rooms are just a code + a nickname. No accounts, no email, no OAuth.
+- Identity is your real GitHub account, verified server-side via GitHub's
+  device flow. Scope `read:user` — public profile only; ccrank can't touch
+  your code, repos, or orgs.
 - Numbers are self-reported (hooks run on your machine), so this is built for
-  **friends having fun**, not tamper-proof competition. Be cool.
+  **bragging rights**, not tamper-proof competition. Be cool.
 
 ## License
 

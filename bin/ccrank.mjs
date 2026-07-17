@@ -220,7 +220,7 @@ async function login() {
   console.log(`  makes scores you a point. Only counts leave your machine — ${c.b("never your code")}.`);
   console.log(`\n  Global board:  ${c.y(cfg.server + "/")}`);
   if (cfg.roomCode) console.log(`  Your room:     ${c.dim(cfg.server + "/r/" + cfg.roomCode)}`);
-  else console.log(`  Want a friends room? ${c.dim("ccrank create --name \"Room\"  ·  ccrank join <CODE>")}`);
+  else console.log(`  Want a private room for your crew? ${c.dim("ccrank create --name \"Room\"  ·  ccrank join <CODE>")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
 }
@@ -280,7 +280,7 @@ async function joinRoom() {
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Joined ${c.b(res.roomName)}`);
   const who = res.owner ? `${c.b(res.owner)} invited you to` : `You're in`;
-  console.log(`  ${who} a friendly Claude Code leaderboard.`);
+  console.log(`  ${who} a private room on the global ccrank board.`);
   console.log(`  Every prompt you send and file edit Claude makes scores you a point —`);
   console.log(`  one global score that follows you into every room. Only counts leave`);
   console.log(`  your machine — ${c.b("never your code")}.`);
@@ -335,11 +335,12 @@ function fail(msg) { console.error(`  ${msg}`); process.exitCode = 1; }
 
 function help() {
   console.log(`
-  ${c.b("ccrank")} — a Claude Code leaderboard. Sign in with GitHub, one global
-  score; rooms are just groups of friends viewing the same board.
+  ${c.b("ccrank")} — the global Claude Code leaderboard. Every prompt and edit
+  scores a point; sign in with GitHub and you're on the board with every
+  ccrank user. Rooms are optional private groups viewing the same scores.
 
   ${c.y("ccrank login")}                   sign in with GitHub, get on the global board
-  ${c.y("ccrank join")} <CODE>              join a friends room (logs you in if needed)
+  ${c.y("ccrank join")} <CODE>              join a private room (logs you in if needed)
   ${c.y("ccrank create")} --name "Room"    create a room, auto-joins you (logs in if needed)
   ${c.y("ccrank update")}                  pull the latest scripts (no re-auth)
   ${c.y("ccrank status")}                  show your global rank + rooms

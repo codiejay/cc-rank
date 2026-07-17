@@ -10,7 +10,7 @@ export function dashboardHtml(code: string | null): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="theme-color" content="#F4F3EF" />
-<title>ccrank — Claude Code leaderboard</title>
+<title>ccrank — the global Claude Code leaderboard</title>
 <style>
   :root {
     color-scheme: light;
@@ -527,8 +527,8 @@ export function dashboardHtml(code: string | null): string {
     const S = location.origin;
     const head = code
       ? 'Help me join a ccrank room (a Claude Code leaderboard). Room code: '+code+'. My flow is JOIN.'
-      : 'Help me set up ccrank (a Claude Code leaderboard). First ask me ONE question and wait for my answer — which flow do I want:\\n  (a) GET ON THE BOARD — just sign in with GitHub; I appear on the global leaderboard. No room.\\n  (b) JOIN a friends room — then ask me for the 6-character room code.\\n  (c) CREATE a room — then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
-    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username — GitHub itself determines who I am during sign-in. One user, one global score; rooms are just groups viewing the same per-user stream. Whenever you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name.\\n\\nFollow these steps exactly, in order:\\n'+
+      : 'Help me set up ccrank (the global Claude Code leaderboard). First ask me ONE question and wait for my answer — which flow do I want:\\n  (a) GET ON THE BOARD (the default) — sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room — then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew — then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
+    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username — GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. Whenever you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name.\\n\\nFollow these steps exactly, in order:\\n'+
       '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
       '2. If JOIN: verify the room exists with GET '+S+'/api/rooms/<CODE>/check. If \\"reason\\":\\"room_not_found\\" -> tell me the code looks wrong and stop.\\n'+
       '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login. JOIN: npx github:codiejay/cc-rank join <CODE>. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\" (creating auto-joins me — no separate join needed).\\n'+
@@ -553,7 +553,7 @@ export function dashboardHtml(code: string | null): string {
       const room = await (await fetch('/api/rooms/'+code+'/check')).json();
       if (room.reason === 'room_not_found') return msg(out, 'err', 'Room '+code+' not found — double-check the code.');
       cmdBox(out, 'npx github:codiejay/cc-rank join '+code,
-        'You\\u2019re joining '+(room.roomName||code)+'. It signs you in with GitHub — no username to type. Needs Node.js.');
+        'You\\u2019re joining '+(room.roomName||code)+' \\u2014 a private view of the global board; your global score comes with you. It signs you in with GitHub — no username to type. Needs Node.js.');
     } catch { msg(out, 'err', 'Could not reach the server — try again.'); }
   }
 
@@ -782,7 +782,7 @@ export function dashboardHtml(code: string | null): string {
       '<div class="onb-head">'+claudeBurst('burst-ico')+'<h3>Get on the board</h3>'+
       '<span class="onb-tag">Start here</span></div>'+
       '<div class="pad">'+termDemo()+
-      '<p class="hint">One prompt in Claude Code sets everything up &mdash; you sign in with GitHub (real auth, no typed names), it installs the hooks.</p>'+
+      '<p class="hint">One prompt in Claude Code sets everything up &mdash; sign in with GitHub (real auth, no typed names) and you&rsquo;re on the global board with every ccrank user.</p>'+
       '<button class="btn dark glow" onclick="copyAgent(null, \\'aOut\\')">Copy the agent prompt</button>'+
       '<div id="aOut" style="margin-bottom:10px"></div>'+
       '<details><summary>Join a room by hand</summary><div class="fields">'+
@@ -924,7 +924,7 @@ export function dashboardHtml(code: string | null): string {
         '<div class="liq" aria-hidden="true"><i class="b1"></i><i class="b2"></i>'+
           '<i class="b3"></i><i class="b4"></i><i class="b5"></i><i class="b6"></i></div>'+
         '<div class="hero-head"><h1>Every prompt counts.</h1>'+
-          '<p>The live Claude Code leaderboard \\u2014 you and your friends, ranked by prompts and edits.</p></div>'+
+          '<p>One global board for every Claude Code user \\u2014 prompts and edits, ranked live. Rooms if you want your own crew.</p></div>'+
         '<div class="heroterm'+(heroPlayed ? ' noanim' : '')+'" role="img" '+
           'aria-label="terminal showing the live global leaderboard">'+
           '<div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i>'+
