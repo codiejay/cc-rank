@@ -15,7 +15,7 @@ const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 
 // Default server. Overridable with --server <url> or CCRANK_SERVER env.
 // >>> After you deploy the Worker, replace this with your *.workers.dev URL. <<<
-const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.CHANGEME.workers.dev";
+const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.jamesakpan.workers.dev";
 
 // ---- tiny arg parsing ----------------------------------------------------
 const [cmd, ...rest] = process.argv.slice(2);
