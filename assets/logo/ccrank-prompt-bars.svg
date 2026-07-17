@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- ccrank: terminal prompt chevron + leaderboard rank bars (leader in coral) -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#23201A"/>
+  <path d="M 132 158 L 236 256 L 132 354" fill="none" stroke="#F2EFE7" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="none" stroke-width="42" stroke-linecap="round">
+    <path d="M 302 158 L 404 158" stroke="#D97757"/>
+    <path d="M 302 256 L 366 256" stroke="#736C5D"/>
+    <path d="M 302 354 L 340 354" stroke="#736C5D"/>
+  </g>
+</svg>
