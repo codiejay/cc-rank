@@ -402,16 +402,12 @@ export function dashboardHtml(code: string | null): string {
   @keyframes hfade { from { opacity: 0; } to { opacity: 1; } }
   .hmut { color: rgba(244,239,229,.45); }
   .hok { color: #5BD98A; font-weight: 700; }
-  /* the ccrank statusline exactly as it renders inside Claude Code */
+  /* the ccrank statusline as it renders inside Claude Code — just the rank */
   .slwrap { margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(244,239,229,.12);
-            font-size: 11px; line-height: 1.95; }
+            font-size: 12px; line-height: 1.95; }
   .sl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sl i { font-style: normal; }
-  .sl .k { color: #6EC1BE; }
   .sl .hd { color: rgba(244,239,229,.28); }
-  .sl .yv { color: #E5C07B; }
-  .sl .gv { color: #5BD98A; }
-  .sl .rv { color: #E8756A; }
   .sl .lnk { color: #96B7F0; text-decoration: underline; text-underline-offset: 2px; }
   .hrank { color: var(--accent); font-weight: 700; display: inline-block;
            animation: rankpop .55s cubic-bezier(.22,1,.36,1) 2.75s both; }
@@ -576,10 +572,12 @@ export function dashboardHtml(code: string | null): string {
   // A prompt the user pastes into their coding agent. Identity is real GitHub
   // auth (gh CLI token or device flow), so the agent never asks for a name —
   // it just runs the command and shepherds the sign-in.
-  function agentPrompt(code){
+  function agentPrompt(code, roomName){
     const S = location.origin;
     const head = code
-      ? 'Help me join a ccrank room (a Claude Code leaderboard). Room code: '+code+'. My flow is JOIN.'
+      ? 'Help me join a ccrank room (a Claude Code leaderboard). Room code: '+code+'. My flow is JOIN — skip the flow question.'
+      : roomName
+      ? 'Help me set up ccrank (the global Claude Code leaderboard). My flow is CREATE with the room name \\"'+String(roomName).replace(/"/g, '')+'\\" — skip the flow question and do not ask me for a name.'
       : 'Help me set up ccrank (the global Claude Code leaderboard). First ask me ONE question and wait for my answer — which flow do I want:\\n  (a) GET ON THE BOARD (the default) — sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room — then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew — then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
     return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username — GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. Whenever you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name.\\n\\nFollow these steps exactly, in order:\\n'+
       '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
@@ -598,6 +596,8 @@ export function dashboardHtml(code: string | null): string {
     return false;
   }
 
+  // Prompt-first (James: "it's a prompt!"): these panels validate the input,
+  // then copy the AGENT PROMPT with the room baked in — never a raw command.
   async function genJoin(){
     const out = document.getElementById('jOut');
     const code = document.getElementById('jCode').value.trim().toUpperCase();
@@ -606,8 +606,9 @@ export function dashboardHtml(code: string | null): string {
     try {
       const room = await (await fetch('/api/rooms/'+code+'/check')).json();
       if (room.reason === 'room_not_found') return msg(out, 'err', 'Room '+code+' not found — double-check the code.');
-      cmdBox(out, 'npx github:codiejay/cc-rank join '+code,
-        'You\\u2019re joining '+(room.roomName||code)+' \\u2014 a private view of the global board; your global score comes with you. It signs you in with GitHub — no username to type. Needs Node.js.');
+      navigator.clipboard.writeText(agentPrompt(code)).then(function(){
+        msg(out, 'ok', 'Prompt copied — paste it into Claude Code. You\\u2019re joining '+(room.roomName||code)+'; your global score comes with you.');
+      }, function(){ msg(out, 'err', 'Could not copy — is the page focused?'); });
     } catch { msg(out, 'err', 'Could not reach the server — try again.'); }
   }
 
@@ -619,8 +620,9 @@ export function dashboardHtml(code: string | null): string {
     try {
       const r = await (await fetch('/api/check-room?name='+encodeURIComponent(room))).json();
       if (r.reason === 'room_name_taken') return msg(out, 'err', 'A room called "'+room+'" already exists — room names are unique. Pick another.');
-      cmdBox(out, 'npx github:codiejay/cc-rank create --name '+shq(room),
-        'It signs you in with GitHub, creates the room, joins you, and prints the code to share. Needs Node.js.');
+      navigator.clipboard.writeText(agentPrompt(null, room)).then(function(){
+        msg(out, 'ok', 'Prompt copied — paste it into Claude Code to create \\u201C'+room+'\\u201D.');
+      }, function(){ msg(out, 'err', 'Could not copy — is the page focused?'); });
     } catch { msg(out, 'err', 'Could not reach the server — try again.'); }
   }
 
@@ -861,11 +863,11 @@ export function dashboardHtml(code: string | null): string {
       '<div id="aOut" style="margin-bottom:10px"></div>'+
       '<details><summary>Join a room by hand</summary><div class="fields">'+
         '<input id="jCode" class="up" placeholder="ROOM CODE" maxlength="6" autocomplete="off" />'+
-        '<button class="btn ghost" onclick="genJoin()">Get my join command</button>'+
+        '<button class="btn ghost" onclick="genJoin()">Copy the agent prompt</button>'+
         '<div id="jOut"></div></div></details>'+
       '<details><summary>Create a room</summary><div class="fields">'+
         '<input id="cRoom" placeholder="room name" maxlength="60" autocomplete="off" />'+
-        '<button class="btn ghost" onclick="genCreate()">Get my create command</button>'+
+        '<button class="btn ghost" onclick="genCreate()">Copy the agent prompt</button>'+
         '<div id="cOut"></div></div></details>'+
       '</div></div></section>';
   }
@@ -972,15 +974,9 @@ export function dashboardHtml(code: string | null): string {
   function heroHtml(){
     const users = Math.max(1, (GLOBAL && GLOBAL.stats || {}).players || 0);
     const lines =
-      '<span class="hl hfade" style="--d:1.75s"><span class="hok">\\u25CF</span> 3 files edited '+
-        '<span class="hmut">\\u00B7 +214 \\u221238</span></span>'+
+      '<span class="hl hfade" style="--d:1.75s"><span class="hok">\\u25CF</span> 3 files edited</span>'+
       '<div class="slwrap hfade" style="--d:2.35s">'+
-        '<span class="sl"><i class="k">Model:</i> Opus 4.8 <i class="hd">|</i> '+
-          '<i class="k">Ctx(u):</i> 5.0% <i class="hd">|</i> '+
-          '<i class="k">Cost:</i> <i class="yv">$0.40</i> <i class="hd">|</i> '+
-          '<i class="gv">(+214</i><i class="hd">,</i><i class="rv">\\u221238)</i></span>'+
-        '<span class="sl"><i class="k">Session:</i> 26.0% <i class="hd">|</i> '+
-          '<b class="hrank">CC-Rank #1/'+fmt(users)+'</b> <i class="hd">\\u00B7</i> '+
+        '<span class="sl"><b class="hrank">CC-Rank #1/'+fmt(users)+'</b> <i class="hd">\\u00B7</i> '+
           '<i class="lnk">leaderboard \\u2197</i></span>'+
       '</div>'+
       '<span class="hl hfade" style="--d:3.15s"><span class="ps">&gt;</span> <span class="caret"></span></span>';
