@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { dashboardHtml } from "./dashboard";
 import { appleTouchIconBytes } from "./appleTouchIcon";
+import { track } from "./analytics";
 
-type Bindings = { DB: D1Database };
+type Bindings = { DB: D1Database; OG_KV: KVNamespace };
 
 const app = new Hono<{ Bindings: Bindings }>();
 app.use("/api/*", cors());
@@ -109,11 +110,13 @@ app.post("/api/login", async (c) => {
     await c.env.DB.prepare(
       "UPDATE users SET token = ?, login = ?, avatar = ? WHERE github_id = ?"
     ).bind(tokenHash, gh.login, gh.avatar_url, gh.id).run();
+    track(c, "login", { githubId: gh.id, props: { login: gh.login } });
     return json(c, { token, githubId: gh.id, login: gh.login, avatar: gh.avatar_url, reclaimed: true });
   }
   await c.env.DB.prepare(
     "INSERT INTO users (github_id, login, avatar, token, created_at) VALUES (?, ?, ?, ?, ?)"
   ).bind(gh.id, gh.login, gh.avatar_url, tokenHash, Date.now()).run();
+  track(c, "signup", { githubId: gh.id, props: { login: gh.login } });
   return json(c, { token, githubId: gh.id, login: gh.login, avatar: gh.avatar_url, reclaimed: false });
 });
 
@@ -157,6 +160,7 @@ app.post("/api/rooms", async (c) => {
         c.env.DB.prepare("INSERT INTO memberships (user_id, room_code, joined_at) VALUES (?, ?, ?)")
           .bind(user.id, code, now),
       ]);
+      track(c, "room_create", { githubId: user.id, props: { code } });
       return json(c, { code, name, owner: user.login });
     } catch (e) {
       // The unique index on lower(name) can fire between our pre-check and the
@@ -190,6 +194,7 @@ app.post("/api/rooms/:code/join", async (c) => {
   await c.env.DB.prepare(
     "INSERT OR IGNORE INTO memberships (user_id, room_code, joined_at) VALUES (?, ?, ?)"
   ).bind(user.id, code, Date.now()).run();
+  track(c, "room_join", { githubId: user.id, props: { code } });
   return json(c, { login: user.login, roomCode: code, roomName: room.name, owner: room.owner });
 });
 
@@ -231,26 +236,40 @@ app.post("/api/events", async (c) => {
   const day = utcDay(now);
 
   const stmt = c.env.DB.prepare(
-    "INSERT INTO events (user_id, kind, value, day, ts) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO events (user_id, kind, value, day, ts, capped) VALUES (?, ?, ?, ?, ?, ?)"
   );
-  const batch = [];
+  const parsed: { kind: string; value: number }[] = [];
   for (const e of raw.slice(0, 50)) {
     const kind = e?.kind === "edit" ? "edit" : e?.kind === "prompt" ? "prompt" : null;
     if (!kind) continue;
     const value = Math.max(1, Math.min(100000, Math.floor(Number(e?.value) || 1)));
-    batch.push(stmt.bind(user.id, kind, value, day, now));
+    parsed.push({ kind, value });
   }
-  // Per-user per-UTC-day cap: record at most 2000 events/day. Bounds abuse and
-  // runaway clients while sitting far above any honest day's activity.
-  if (batch.length) {
-    const { n } = (await c.env.DB.prepare(
-      "SELECT COUNT(*) AS n FROM events WHERE user_id = ? AND day = ?"
-    ).bind(user.id, day).first<{ n: number }>()) ?? { n: 0 };
-    const remaining = Math.max(0, 2000 - n);
-    const toInsert = batch.slice(0, remaining);
-    if (toInsert.length) await c.env.DB.batch(toInsert);
+  // Two per-user per-UTC-day ceilings, set at insert time:
+  //  - COUNTED cap (500/day): events beyond it are stored with capped = 1 and
+  //    excluded from every score, board, badge, and chart. This is the
+  //    anti-farming line — a shell loop can't buy points past lunch, and can
+  //    never headline the weekly 25.
+  //  - STORAGE cap (2000/day): beyond it we stop inserting entirely. Bounds
+  //    abuse and runaway clients.
+  if (parsed.length) {
+    const counts = (await c.env.DB.prepare(`
+      SELECT COUNT(*) AS total,
+             SUM(CASE WHEN capped = 0 THEN 1 ELSE 0 END) AS counted
+      FROM events WHERE user_id = ? AND day = ?`
+    ).bind(user.id, day).first<{ total: number; counted: number | null }>()) ??
+      { total: 0, counted: 0 };
+    const total = counts.total, counted = counts.counted ?? 0;
+    let countedLeft = Math.max(0, 500 - counted);
+    const batch = [];
+    for (const e of parsed.slice(0, Math.max(0, 2000 - total))) {
+      const capped = countedLeft > 0 ? 0 : 1;
+      if (capped === 0) countedLeft--;
+      batch.push(stmt.bind(user.id, e.kind, e.value, day, now, capped));
+    }
+    if (batch.length) await c.env.DB.batch(batch);
   }
-  return json(c, { ok: true, recorded: batch.length });
+  return json(c, { ok: true, recorded: parsed.length });
 });
 
 // ---- boards --------------------------------------------------------------
@@ -283,7 +302,7 @@ async function boardPayload(db: D1Database, code: string | null) {
              COALESCE(SUM(CASE WHEN e.kind='edit'   THEN 1 ELSE 0 END), 0) AS edits,
              COALESCE(SUM(CASE WHEN e.kind='edit'   THEN e.value ELSE 0 END), 0) AS lines
       FROM users u
-      LEFT JOIN events e ON e.user_id = u.github_id ${where}
+      LEFT JOIN events e ON e.user_id = u.github_id AND e.capped = 0 ${where}
       ${code ? `WHERE u.github_id IN (${ph})` : ""}
       GROUP BY u.github_id
       ${code ? "" : "HAVING (prompts + edits) > 0"}
@@ -315,7 +334,7 @@ async function boardPayload(db: D1Database, code: string | null) {
     hasPop
       ? db.prepare(`
           SELECT day, user_id AS id, COUNT(*) AS score FROM events e
-          WHERE 1=1 ${memberFilter} GROUP BY day, user_id`).bind(...bindMembers).all()
+          WHERE e.capped = 0 ${memberFilter} GROUP BY day, user_id`).bind(...bindMembers).all()
           .then((r) => r.results as unknown as { day: string; id: number; score: number }[])
       : Promise.resolve([] as { day: string; id: number; score: number }[]),
     hasPop
@@ -323,7 +342,7 @@ async function boardPayload(db: D1Database, code: string | null) {
           SELECT day,
                  SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END) AS prompts,
                  SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END) AS edits
-          FROM events e WHERE day >= ? ${memberFilter}
+          FROM events e WHERE day >= ? AND e.capped = 0 ${memberFilter}
           GROUP BY day ORDER BY day ASC`).bind(since, ...bindMembers).all()
           .then((r) => r.results)
       : Promise.resolve([]),
@@ -331,7 +350,7 @@ async function boardPayload(db: D1Database, code: string | null) {
       ? db.prepare(`
           SELECT e.day AS day, u.login AS login, u.avatar AS avatar, COUNT(*) AS n
           FROM events e JOIN users u ON u.github_id = e.user_id
-          WHERE e.day >= ? ${memberFilter}
+          WHERE e.day >= ? AND e.capped = 0 ${memberFilter}
           GROUP BY e.day, e.user_id
           ORDER BY e.day ASC, n DESC, u.created_at ASC`).bind(since, ...bindMembers).all()
           .then((r) => r.results as unknown as { day: string; login: string; avatar: string | null; n: number }[])
@@ -341,7 +360,8 @@ async function boardPayload(db: D1Database, code: string | null) {
     hasPop
       ? db.prepare(`
           SELECT e.user_id AS id, COUNT(*) AS n FROM events e
-          WHERE CAST(strftime('%H', e.ts/1000, 'unixepoch') AS INTEGER) < 5 ${memberFilter}
+          WHERE CAST(strftime('%H', e.ts/1000, 'unixepoch') AS INTEGER) < 5
+            AND e.capped = 0 ${memberFilter}
           GROUP BY e.user_id`).bind(...bindMembers).all()
           .then((r) => r.results as unknown as { id: number; n: number }[])
       : Promise.resolve([] as { id: number; n: number }[]),
@@ -481,6 +501,111 @@ async function boardPayload(db: D1Database, code: string | null) {
   };
 }
 
+// ---- the weekly 25 ---------------------------------------------------------
+// Chart weeks run Mon 00:00 → Sun 23:59:59 UTC; the chart "drops" Monday.
+// The latest COMPLETED week is finalized lazily on first read (no cron):
+// INSERT OR IGNORE on the (week, user_id) PK makes concurrent finalizes safe.
+
+function addDays(day: string, n: number): string {
+  return new Date(Date.parse(day + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+}
+function weekMonday(ts: number): string {
+  const dow = (new Date(ts).getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+  return utcDay(ts - dow * 86400000);
+}
+
+// Per-isolate memo so the "is last week finalized yet?" probe runs once per
+// isolate per week, not on every request.
+let chartMemo = "";
+async function ensureChartWeek(db: D1Database, week: string): Promise<void> {
+  if (chartMemo === week) return;
+  const done = await db.prepare("SELECT 1 AS x FROM chart_weeks WHERE week = ? LIMIT 1")
+    .bind(week).first();
+  if (!done) {
+    const sunday = addDays(week, 6);
+    const rows = (await db.prepare(`
+      SELECT e.user_id AS id,
+             SUM(CASE WHEN e.kind='prompt' THEN 1 ELSE 0 END) AS prompts,
+             SUM(CASE WHEN e.kind='edit'   THEN 1 ELSE 0 END) AS edits,
+             COUNT(*) AS score
+      FROM events e JOIN users u ON u.github_id = e.user_id
+      WHERE e.day >= ? AND e.day <= ? AND e.capped = 0
+      GROUP BY e.user_id
+      ORDER BY score DESC, u.created_at ASC
+      LIMIT 25`).bind(week, sunday).all())
+      .results as unknown as { id: number; prompts: number; edits: number; score: number }[];
+    if (rows.length) {
+      const stmt = db.prepare(
+        "INSERT OR IGNORE INTO chart_weeks (week, user_id, position, score, prompts, edits) VALUES (?, ?, ?, ?, ?, ?)");
+      await db.batch(rows.map((r, i) => stmt.bind(week, r.id, i + 1, r.score, r.prompts, r.edits)));
+    }
+    // A week with zero activity finalizes to zero rows; memoizing anyway keeps
+    // the probe from re-running per request (a fresh isolate re-checks — fine).
+  }
+  chartMemo = week;
+}
+
+export type ChartEntry = {
+  position: number; id: number; login: string; avatar: string | null;
+  prompts: number; edits: number; score: number;
+  // +N climbed, -N fell, 0 held, null = wasn't on last week's chart
+  movement: number | null;
+  tag: "NEW" | "RE" | null;
+  peak: number; weeks: number;
+};
+
+async function chartPayload(db: D1Database) {
+  const now = Date.now();
+  const dow = (new Date(now).getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+  const week = addDays(weekMonday(now), -7);       // latest completed week
+  await ensureChartWeek(db, week);
+
+  const [entryRows, histRows] = await Promise.all([
+    db.prepare(`
+      SELECT cw.position, cw.score, cw.prompts, cw.edits,
+             cw.user_id AS id, u.login, u.avatar
+      FROM chart_weeks cw JOIN users u ON u.github_id = cw.user_id
+      WHERE cw.week = ? ORDER BY cw.position ASC`).bind(week).all()
+      .then((r) => r.results as any[]),
+    // Whole history is tiny (≤25 rows/week) — pull it and derive in JS.
+    db.prepare("SELECT week, user_id AS id, position FROM chart_weeks WHERE week < ?")
+      .bind(week).all()
+      .then((r) => r.results as unknown as { week: string; id: number; position: number }[]),
+  ]);
+
+  const prevWeek = addDays(week, -7);
+  const prevPos = new Map<number, number>();
+  const history = new Map<number, number[]>(); // user -> positions of past weeks
+  for (const h of histRows) {
+    if (h.week === prevWeek) prevPos.set(h.id, h.position);
+    if (!history.has(h.id)) history.set(h.id, []);
+    history.get(h.id)!.push(h.position);
+  }
+
+  const entries: ChartEntry[] = entryRows.map((r) => {
+    const past = history.get(r.id) || [];
+    const prev = prevPos.get(r.id);
+    return {
+      position: r.position, id: r.id, login: r.login, avatar: r.avatar,
+      prompts: r.prompts, edits: r.edits, score: r.score,
+      movement: prev == null ? null : prev - r.position,
+      tag: past.length === 0 ? "NEW" : prev == null ? "RE" : null,
+      peak: Math.min(r.position, ...past),
+      weeks: past.length + 1,
+    };
+  });
+
+  return {
+    week,
+    // Mon+Tue the fresh chart is the story; Sunday is last-chance; else cooking.
+    state: dow <= 1 ? "dropped" : dow === 6 ? "locks_tonight" : "cooking",
+    daysLeft: 7 - dow, // days until the next drop (Monday)
+    debuts: entries.filter((e) => e.tag === "NEW").length,
+    reentries: entries.filter((e) => e.tag === "RE").length,
+    entries,
+  };
+}
+
 // Standings for a room = its MEMBERS ranked by their global score.
 app.get("/api/rooms/:code", async (c) => {
   // Looser than join/check: the room page legitimately polls this every 5s
@@ -517,7 +642,12 @@ app.get("/api/global", async (c) => {
     if (!arr.includes(m.roomName)) arr.push(m.roomName);
   }
 
-  const board = await boardPayload(c.env.DB, null);
+  const [board, chart] = await Promise.all([
+    boardPayload(c.env.DB, null),
+    // The chart must never take the board down with it (e.g. chart_weeks
+    // missing on an old DB) — degrade to no banner instead.
+    chartPayload(c.env.DB).catch(() => null),
+  ]);
   const withRooms = (rows: any[]) =>
     rows.map((r) => ({ ...r, rooms: roomsByUser.get(r.id) || [] }));
 
@@ -526,7 +656,7 @@ app.get("/api/global", async (c) => {
            (SELECT COUNT(*) FROM users) AS players,
            COALESCE(SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END), 0) AS prompts,
            COALESCE(SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END), 0) AS edits
-    FROM events`).first();
+    FROM events WHERE capped = 0`).first();
 
   // Room directory for the sidebar: names only, never codes (join credential).
   const roomsList = (await c.env.DB.prepare(
@@ -550,7 +680,7 @@ app.get("/api/me", async (c) => {
     SELECT u.github_id AS id,
            COALESCE(SUM(CASE WHEN e.kind IN ('prompt','edit') THEN 1 ELSE 0 END),0) AS score
     FROM users u
-    LEFT JOIN events e ON e.user_id = u.github_id
+    LEFT JOIN events e ON e.user_id = u.github_id AND e.capped = 0
     GROUP BY u.github_id
     ORDER BY score DESC, u.created_at ASC`).all();
   const list = rows.results as any[];
@@ -592,13 +722,244 @@ const CSP =
 
 app.get("/", (c) => {
   c.header("Content-Security-Policy", CSP);
+  track(c, "page_view", { props: { page: "home" } });
   return c.html(dashboardHtml(null));
 });
 app.get("/r/:code", (c) => {
   c.header("Content-Security-Policy", CSP);
   const code = c.req.param("code").toUpperCase();
   // Only a validated code is echoed into the page; anything else -> global board.
-  return c.html(dashboardHtml(CODE_RE.test(code) ? code : null));
+  const valid = CODE_RE.test(code);
+  track(c, "page_view", { props: valid ? { page: "room", code } : { page: "home" } });
+  return c.html(dashboardHtml(valid ? code : null));
+});
+
+// ---- share cards -----------------------------------------------------------
+// GitHub logins: alnum + hyphens, max 39 — anything else never touches D1/HTML.
+const LOGIN_RE = /^[a-zA-Z0-9-]{1,39}$/;
+
+// PNG rendering lives on Vercel (og-service/): satori+resvg needs ~300ms+ of
+// CPU, and Workers free tier caps at 10ms. The Worker computes the data from
+// D1 (cheap) and proxies the pixels (pure I/O), so public URLs stay ours.
+const OG_RENDERER = "https://og-service-nu.vercel.app/api/card";
+
+interface OgData {
+  row: { rank: number; login: string; avatar: string | null;
+         prompts: number; edits: number; score: number;
+         awards: { key: string; label: string }[] };
+  total: number; maxScore: number;
+  heat: { day: string; n: number }[];
+}
+
+// The card's data: the user's global board row + their last-13-weeks dailies.
+async function ogData(db: D1Database, login: string): Promise<OgData | null> {
+  const board = await boardPayload(db, null);
+  const rows = (board.allTime || []) as any[];
+  const row = rows.find((r) => r.login.toLowerCase() === login.toLowerCase());
+  if (!row) return null;
+  const since = utcDay(Date.now() - 90 * 86400000);
+  const heat = await db.prepare(
+    "SELECT day, COUNT(*) AS n FROM events WHERE user_id = ? AND day >= ? AND capped = 0 GROUP BY day")
+    .bind(row.id, since).all();
+  return {
+    row: { rank: row.rank, login: row.login, avatar: row.avatar,
+           prompts: row.prompts, edits: row.edits, score: row.score,
+           awards: row.awards || [] },
+    total: rows.length,
+    maxScore: rows[0]?.score || 1,
+    heat: heat.results as unknown as { day: string; n: number }[],
+  };
+}
+
+// One card = one KV entry, keyed by the fields that change its pixels. KV is
+// GLOBAL (unlike the per-colo edge cache): the share-menu preview pre-warms a
+// card, then a crawler hitting any datacenter gets bytes in ~50ms instead of
+// a multi-second cold render — X's image fetcher gives up on slow origins.
+function ogKey(d: OgData): string {
+  return "og:" + d.row.login.toLowerCase() + ":" + d.row.score + ":" + d.row.rank + ":" + d.total;
+}
+async function ogRender(d: OgData): Promise<ArrayBuffer | null> {
+  // base64url the payload for the renderer (chunked — no giant spread)
+  const bytes = new TextEncoder().encode(JSON.stringify(d));
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const d64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const res = await fetch(OG_RENDERER + "?d=" + d64);
+  if (!res.ok) return null;
+  return await res.arrayBuffer();
+}
+async function ogPngCached(env: Bindings, d: OgData, ctx: { waitUntil(p: Promise<unknown>): void }): Promise<ArrayBuffer | null> {
+  const key = ogKey(d);
+  const hit = await env.OG_KV.get(key, "arrayBuffer");
+  if (hit) return hit;
+  const png = await ogRender(d);
+  if (png) ctx.waitUntil(env.OG_KV.put(key, png, { expirationTtl: 86400 }));
+  return png;
+}
+
+// The PNG itself: KV-first, render on miss.
+app.get("/og/:login", async (c) => {
+  const login = c.req.param("login").replace(/\.png$/i, "");
+  if (!LOGIN_RE.test(login)) return c.notFound();
+  const data = await ogData(c.env.DB, login);
+  if (!data) return c.notFound();
+  track(c, "og_card", { props: { login } });
+  const png = await ogPngCached(c.env, data, c.executionCtx);
+  if (!png) return c.text("render unavailable", 503);
+  return c.body(png, 200, {
+    "Content-Type": "image/png",
+    "Cache-Control": "public, max-age=300",
+  });
+});
+
+// The share page: the dashboard plus per-user og/twitter meta so a pasted
+// link unfurls into the card. ?v=score in shared URLs busts X's unfurl cache.
+app.get("/u/:login", async (c) => {
+  const login = c.req.param("login");
+  if (!LOGIN_RE.test(login)) return c.redirect("/");
+  const data = await ogData(c.env.DB, login);
+  if (!data) return c.redirect("/");
+  // Pre-warm the card into KV: crawlers fetch og:image within seconds of
+  // reading this page's meta, and they won't wait out a cold render.
+  c.executionCtx.waitUntil(ogPngCached(c.env, data, c.executionCtx).then(() => {}));
+  const origin = new URL(c.req.url).origin;
+  c.header("Content-Security-Policy", CSP);
+  track(c, "page_view", { props: { page: "share", login: data.row.login } });
+  return c.html(dashboardHtml(null, {
+    login: data.row.login,
+    title: `${data.row.login} is #${data.row.rank} of ${data.total} on ccrank`,
+    desc: `${data.row.score} pts · ${data.row.prompts} prompts · ${data.row.edits} edits on the global Claude Code leaderboard.`,
+    image: `${origin}/og/${encodeURIComponent(data.row.login)}.png?v=${data.row.score}`,
+    url: `${origin}/u/${encodeURIComponent(data.row.login)}`,
+  }));
+});
+
+// ---- README badge ----------------------------------------------------------
+// Pure-SVG shields-style badge, rendered on the Worker (no og-service): tiny
+// string work fits the free tier's 10ms CPU budget with room to spare.
+// Never 404s for a syntactically valid login — a broken image in someone's
+// README is worse than an "unranked" badge.
+
+// Approximate 11px Verdana advance widths; digits/letters ~7px, thin glyphs
+// less. Good enough because textLength pins the final layout to our estimate.
+function badgeTextWidth(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    if ("iljI.·|! ".includes(ch)) w += 3.5;
+    else if ("mwMW".includes(ch)) w += 10;
+    else if ("▲▼—".includes(ch)) w += 9;
+    else w += 6.7;
+  }
+  return Math.round(w);
+}
+
+function badgeSvg(label: string, value: string, valueBg: string): string {
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const lw = badgeTextWidth(label) + 12;
+  const vw = badgeTextWidth(value) + 12;
+  const w = lw + vw;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="20" role="img" aria-label="${esc(label)}: ${esc(value)}">
+<title>${esc(label)}: ${esc(value)}</title>
+<clipPath id="r"><rect width="${w}" height="20" rx="3" fill="#fff"/></clipPath>
+<g clip-path="url(#r)">
+<rect width="${lw}" height="20" fill="#23201A"/>
+<rect x="${lw}" width="${vw}" height="20" fill="${valueBg}"/>
+</g>
+<g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+<text x="${lw / 2}" y="14.5" fill="#010101" fill-opacity=".3" textLength="${lw - 12}">${esc(label)}</text>
+<text x="${lw / 2}" y="13.5" fill="#FFF7EF" textLength="${lw - 12}">${esc(label)}</text>
+<text x="${lw + vw / 2}" y="14.5" fill="#010101" fill-opacity=".3" textLength="${vw - 12}">${esc(value)}</text>
+<text x="${lw + vw / 2}" y="13.5" textLength="${vw - 12}">${esc(value)}</text>
+</g>
+</svg>`;
+}
+
+const BADGE_CORAL = "#D97757";
+const BADGE_GRAY = "#8B867B";
+
+function badgeResponse(svg: string): Response {
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      // One hour is the freshness/beauty tradeoff: GitHub's camo proxy caches
+      // aggressively anyway, and rank moves slowly enough that stale-by-an-hour
+      // never reads as wrong.
+      "Cache-Control": "public, max-age=3600",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+app.get("/badge/:login", async (c) => {
+  const login = c.req.param("login").replace(/\.svg$/i, "");
+  const wantChart = c.req.query("chart") !== undefined;
+  const label = wantChart ? "ccrank weekly" : "ccrank";
+  if (!LOGIN_RE.test(login)) {
+    return badgeResponse(badgeSvg(label, "unranked", BADGE_GRAY));
+  }
+
+  // Per-colo edge cache so README traffic doesn't fan out into D1.
+  const cache = caches.default;
+  const cacheKey = new Request(new URL(c.req.url).toString());
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit;
+
+  let res: Response;
+  if (wantChart) {
+    // Last finalized week's chart position + movement vs the week before.
+    // Wrapped so a missing chart_weeks table (pre-chart deploys) degrades to
+    // "didn't chart" instead of a 500.
+    try {
+      const rows = (await c.env.DB.prepare(`
+        SELECT cw.week, cw.position FROM chart_weeks cw
+        JOIN users u ON u.github_id = cw.user_id
+        WHERE lower(u.login) = lower(?)
+        ORDER BY cw.week DESC LIMIT 2`).bind(login).all())
+        .results as unknown as { week: string; position: number }[];
+      if (!rows.length) {
+        res = badgeResponse(badgeSvg(label, "didn't chart", BADGE_GRAY));
+      } else {
+        const latest = (await c.env.DB.prepare(
+          "SELECT MAX(week) AS w FROM chart_weeks").first<{ w: string | null }>())?.w;
+        if (rows[0].week !== latest) {
+          res = badgeResponse(badgeSvg(label, "didn't chart", BADGE_GRAY));
+        } else {
+          const prevWeek = new Date(Date.parse(rows[0].week + "T00:00:00Z") - 7 * 86400000)
+            .toISOString().slice(0, 10);
+          const prev = rows[1]?.week === prevWeek ? rows[1].position : null;
+          const mv = prev == null ? "new" :
+            prev > rows[0].position ? `▲${prev - rows[0].position}` :
+            prev < rows[0].position ? `▼${rows[0].position - prev}` : "—";
+          res = badgeResponse(badgeSvg(label, `#${rows[0].position} ${mv}`, BADGE_CORAL));
+        }
+      }
+    } catch {
+      res = badgeResponse(badgeSvg(label, "didn't chart", BADGE_GRAY));
+    }
+  } else {
+    // All-time global rank, same ordering as the board (score, then lines,
+    // then account age). One aggregate pass; the user table is small.
+    const rows = (await c.env.DB.prepare(`
+      SELECT u.login,
+             COALESCE(SUM(CASE WHEN e.kind IN ('prompt','edit') THEN 1 ELSE 0 END), 0) AS score,
+             COALESCE(SUM(CASE WHEN e.kind='edit' THEN e.value ELSE 0 END), 0) AS lines
+      FROM users u LEFT JOIN events e ON e.user_id = u.github_id AND e.capped = 0
+      GROUP BY u.github_id
+      HAVING score > 0
+      ORDER BY score DESC, lines DESC, u.created_at ASC`).all())
+      .results as unknown as { login: string; score: number }[];
+    const idx = rows.findIndex((r) => r.login.toLowerCase() === login.toLowerCase());
+    res = idx < 0
+      ? badgeResponse(badgeSvg(label, "unranked", BADGE_GRAY))
+      : badgeResponse(badgeSvg(label,
+          `#${idx + 1} · ${rows[idx].score.toLocaleString("en-US")} pts`, BADGE_CORAL));
+  }
+
+  c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
+  return res;
 });
 
 export default app;
