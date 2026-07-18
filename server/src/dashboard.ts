@@ -268,6 +268,19 @@ export function dashboardHtml(code: string | null): string {
   .msg { margin-top: 8px; font: 11.5px/1.5 var(--mono); }
   .msg.err { color: var(--down); }
   .msg.ok { color: var(--up); }
+
+  /* ---- skeleton loading ----
+     Greige ghost blocks that mirror the real cards 1:1 (no layout shift on
+     first data paint). A warm cream highlight sweeps left-to-right; the global
+     reduced-motion switch below freezes it to flat blocks. */
+  .sk { position: relative; overflow: hidden; display: inline-block; vertical-align: top;
+        background: #EFEDE6; border-radius: 6px; }
+  .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+        background: linear-gradient(100deg, transparent 25%, rgba(255,252,245,.7) 50%, transparent 75%);
+        animation: sksweep 1.8s ease-in-out infinite; }
+  @keyframes sksweep { to { transform: translateX(100%); } }
+  .skblk { display: block; }
+  .heatfoot i.sk { border-radius: 3px; }
   .codebox { position: relative; overflow: hidden; border: 1.5px dashed var(--line2);
              border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 14px; }
   .codebox.open { cursor: pointer; }
@@ -487,7 +500,7 @@ export function dashboardHtml(code: string | null): string {
     <div class="navsec">Menu</div>
     <a class="nav" id="navHome" href="/">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="9" width="4" height="12" rx="1"/></svg>
-      Overview</a>
+      Global</a>
     <div class="navsec">Rooms <span class="cnt" id="roomCnt"></span></div>
     <div id="navRooms"></div>
     <div class="spacer"></div>
@@ -501,7 +514,7 @@ export function dashboardHtml(code: string | null): string {
 
   <main class="main">
     <div class="topbar"><div class="tbin">
-      <div class="crumb" id="crumb">Overview</div>
+      <div class="crumb" id="crumb">Global</div>
       <div class="seg" id="seg">
         <button id="segAll" class="on" onclick="setMode('allTime')">All-time</button>
         <button id="segToday" onclick="setMode('today')">Today</button>
@@ -977,6 +990,15 @@ export function dashboardHtml(code: string | null): string {
     } catch { /* storage unavailable — sidebar stays static */ }
   }
   function renderSide(){
+    document.getElementById('navHome').className = 'nav' + (CODE ? '' : ' on');
+    if (!GLOBAL){ // first fetch in flight — ghost room pills, not an empty list
+      document.getElementById('roomCnt').textContent = '';
+      document.getElementById('navRooms').innerHTML = [70,54,84].map(function(w){
+        return '<div class="nav static"><span class="sk" style="width:9px;height:9px;border-radius:3px;flex:none"></span>'+
+          '<span class="sk" style="width:'+w+'px;height:11px"></span></div>';
+      }).join('');
+      return;
+    }
     // Directory shows room NAMES only. Entries become links only for rooms
     // this browser already knows the code to (currently viewed, or visited
     // before and remembered locally).
@@ -989,7 +1011,7 @@ export function dashboardHtml(code: string | null): string {
       const dot = '<span class="rdot" style="background:hsl('+h+',55%,62%)"></span>';
       if (current && r.name === current)
         return '<a class="nav on" href="/r/'+encodeURIComponent(CODE)+'">'+dot+esc(r.name)+
-          '<span class="code">'+esc(CODE)+'</span></a>';
+          '</a>';
       if (known[r.name])
         return '<a class="nav" href="/r/'+encodeURIComponent(known[r.name])+'">'+dot+esc(r.name)+'</a>';
       return '<div class="nav static" title="joining needs a code from a member">'+dot+esc(r.name)+'</div>';
@@ -999,9 +1021,12 @@ export function dashboardHtml(code: string | null): string {
   function renderTop(){
     const crumb = document.getElementById('crumb');
     if (NOTFOUND) crumb.innerHTML = 'Room not found';
-    else if (CODE && ROOM) crumb.innerHTML = esc(ROOM.room.name)+' <span class="codechip">'+esc(CODE)+'</span>';
-    else if (CODE) crumb.innerHTML = '<span class="codechip">'+esc(CODE)+'</span>';
-    else crumb.textContent = 'Overview';
+    // Never render the room code in the crumb — it's a join credential and
+    // the topbar is on screen through every screenshare. Sharing happens via
+    // the invite card's deliberate frosted-glass reveal only.
+    else if (CODE && ROOM) crumb.innerHTML = esc(ROOM.room.name);
+    else if (CODE) crumb.textContent = 'Room';
+    else crumb.textContent = 'Global';
     document.getElementById('segAll').className = mode==='allTime' ? 'on' : '';
     document.getElementById('segToday').className = mode==='today' ? 'on' : '';
   }
@@ -1083,6 +1108,75 @@ export function dashboardHtml(code: string | null): string {
     if (inp) setTimeout(function(){ inp.focus({ preventScroll: true }); }, 450);
   }
 
+  // ---- skeleton loading ----------------------------------------------------
+  // Ghost placeholders shown while the first /api response is in flight.
+  // Mirrors the real grid (activity card + leaderboard + rail) so the layout
+  // is stable and swaps cleanly to real data — see paint()'s null branch.
+  function skeletonHtml(){
+    const hw = heatWeeks();                 // same geometry as the real chart
+    const gridH = 7 * hw.cell + 6 * 4;      // 7 weekday rows + 6 gaps
+    const wd = ['','Mon','','Wed','','Fri',''];
+    const chart =
+      '<div class="chartrow">'+
+        '<div class="wdays">'+wd.map(function(l){ return '<span>'+l+'</span>'; }).join('')+'</div>'+
+        '<div class="chartscroll"><div style="position:relative;padding-top:22px">'+
+          '<div class="months" style="top:0;height:18px;line-height:18px"></div>'+
+          '<div class="sk skblk" style="height:'+gridH+'px;border-radius:8px"></div>'+
+          '<div class="heatfoot"><span>less</span>'+
+            [0,1,2,3,4].map(function(){ return '<i class="sk"></i>'; }).join('')+
+            '<span>more</span></div>'+
+        '</div></div></div>';
+    const strip =
+      '<div class="mstrip">'+[0,1,2].map(function(){
+        return '<div class="mcell">'+
+          '<div class="mlab"><span class="sk" style="width:22px;height:22px;border-radius:6px"></span>'+
+            '<span class="sk" style="width:48px;height:12px"></span></div>'+
+          '<span class="sk skblk" style="width:66px;height:22px"></span>'+
+          '<span class="sk skblk" style="width:82px;height:11px;margin-top:12px"></span>'+
+        '</div>';
+      }).join('')+'</div>';
+    // widths jitter a touch so the rows read as data, not a stamped template
+    const nmW = [130,104,150,96,120], scW = [46,38,52,34,44];
+    const rows = [0,1,2,3,4].map(function(i){
+      return '<div class="lrow" style="--i:'+i+'">'+
+        '<span class="sk" style="width:18px;height:13px"></span>'+
+        '<span class="sk" style="width:30px;height:30px;border-radius:50%"></span>'+
+        '<div><span class="sk skblk" style="width:'+nmW[i]+'px;height:13px"></span>'+
+          '<span class="sk skblk" style="width:92px;height:12px;margin-top:7px"></span></div>'+
+        '<span class="sk" style="width:108px;height:10px"></span>'+
+        '<span class="sk" style="width:'+scW[i]+'px;height:15px;margin-left:auto"></span>'+
+      '</div>';
+    }).join('');
+    function railCard(bars){
+      return '<section class="card"><div class="cardhead">'+
+        '<span class="sk" style="width:150px;height:15px"></span></div>'+
+        '<div class="pad">'+bars+'</div></section>';
+    }
+    const railA = railCard(
+      '<span class="sk skblk" style="width:100%;height:96px;border-radius:10px;margin-bottom:14px"></span>'+
+      '<span class="sk skblk" style="width:100%;height:12px;margin-bottom:8px"></span>'+
+      '<span class="sk skblk" style="width:70%;height:12px;margin-bottom:16px"></span>'+
+      '<span class="sk skblk" style="width:100%;height:42px;border-radius:10px"></span>');
+    const railB = railCard(
+      [0,1,2,3].map(function(i){
+        return '<span class="sk skblk" style="width:'+[88,80,94,72][i]+'%;height:13px;margin-bottom:12px"></span>';
+      }).join(''));
+    return '<div class="grid">'+
+      '<section class="card span2">'+
+        '<div class="cardhead"><h3>Activity</h3>'+
+          '<span class="sk" style="width:132px;height:11px"></span></div>'+
+        '<div class="chartwrap">'+chart+'</div>'+
+        strip+
+      '</section>'+
+      '<section class="card">'+
+        '<div class="cardhead" style="padding-bottom:12px"><h3>Leaderboard</h3>'+
+          '<span class="sk right" style="width:120px;height:11px;margin-left:auto"></span></div>'+
+        rows+
+      '</section>'+
+      '<div class="rail">'+railA+railB+'</div>'+
+    '</div>';
+  }
+
   // ---- page paint ----------------------------------------------------------
   function totalsFromRows(rows){
     return rows.reduce(function(t, r){
@@ -1102,7 +1196,10 @@ export function dashboardHtml(code: string | null): string {
         '<span>Double-check the code &mdash; or <a href="/">start a new room</a>.</span></section>';
       return;
     }
-    if (!data){ return; } // first fetch still in flight
+    if (!data){ // first fetch still in flight — show skeletons, not a blank page
+      content.innerHTML = (CODE ? '' : heroHtml()) + skeletonHtml();
+      return;
+    }
     const rows = (mode === 'today' ? data.today : data.allTime) || [];
     const totals = CODE
       ? totalsFromRows(data.allTime || [])
