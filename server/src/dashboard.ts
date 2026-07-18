@@ -1236,6 +1236,14 @@ export function dashboardHtml(code: string | null): string {
     if (!CODE){
       const pre = new URLSearchParams(location.search).get('join');
       if (pre && !prefilled){ prefilled = true;
+        // Scrub ?join=CODE from the address bar immediately — the code now
+        // lives only in the input below. Same hygiene as ?me=: nothing
+        // sensitive lingers in the URL for screenshares or copied links.
+        try {
+          const u = new URL(location.href);
+          u.searchParams.delete('join');
+          history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+        } catch { /* cosmetic */ }
         const d = document.querySelectorAll('details')[0];
         if (d) d.open = true;
         const jc = document.getElementById('jCode');
