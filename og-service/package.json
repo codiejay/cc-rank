@@ -1,0 +1,8 @@
+{
+  "name": "ccrank-og",
+  "private": true,
+  "description": "OG card renderer for ccrank — Vercel edge fn because Workers free tier caps CPU at 10ms, far under a Satori+resvg render. The Worker proxies /og/:login.png here; this service holds no data and no secrets.",
+  "dependencies": {
+    "@vercel/og": "^0.6.2"
+  }
+}

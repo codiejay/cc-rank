@@ -2,7 +2,10 @@
 // (identity is a GitHub login), with a letter fallback when they 404.
 // Visual language lives in /DESIGN.md — warm product dashboard, app shell,
 // white cards, square-dot chart, mono numerals, one orange accent.
-export function dashboardHtml(code: string | null): string {
+// og: per-user share meta for /u/:login pages — values are server-derived
+// (validated login + numbers), escaped here anyway as defense-in-depth.
+export interface OgMeta { login: string; title: string; desc: string; image: string; url: string }
+export function dashboardHtml(code: string | null, og?: OgMeta): string {
   // Defense-in-depth: even though the caller only passes a CODE_RE-validated
   // code, harden the serializer so a value could never break out of the inline
   // <script>. JSON.stringify quotes/escapes it, then we unicode-escape <, > and
@@ -10,12 +13,27 @@ export function dashboardHtml(code: string | null): string {
   const initial = code
     ? JSON.stringify(code).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\//g, "\\u002f")
     : "null";
+  const escAttr = (s: string) =>
+    String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+  const ogTags = og ? `
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ccrank" />
+<meta property="og:title" content="${escAttr(og.title)}" />
+<meta property="og:description" content="${escAttr(og.desc)}" />
+<meta property="og:url" content="${escAttr(og.url)}" />
+<meta property="og:image" content="${escAttr(og.image)}" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escAttr(og.title)}" />
+<meta name="twitter:description" content="${escAttr(og.desc)}" />
+<meta name="twitter:image" content="${escAttr(og.image)}" />` : "";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="theme-color" content="#F4F3EF" />
+<meta name="theme-color" content="#F4F3EF" />${ogTags}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='106 106 300 300'%3E%3Cg fill='%23736C5D'%3E%3Crect x='118' y='318' width='76' height='76' rx='19'/%3E%3Crect x='118' y='218' width='76' height='76' rx='19'/%3E%3Crect x='318' y='318' width='76' height='76' rx='19'/%3E%3C/g%3E%3Cg fill='%23D97757'%3E%3Crect x='218' y='318' width='76' height='76' rx='19'/%3E%3Crect x='218' y='218' width='76' height='76' rx='19'/%3E%3Crect x='218' y='118' width='76' height='76' rx='19'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <title>ccrank · the global Claude Code leaderboard</title>
@@ -263,6 +281,8 @@ export function dashboardHtml(code: string | null): string {
           border-top: 1px solid var(--line); animation: rise .45s cubic-bezier(.22,1,.36,1) both;
           animation-delay: calc(var(--i) * 40ms); }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* poll repaints: swap in place, no re-run of the entrance choreography */
+  .quiet .lrow, .quiet .pod { animation: none; }
   .lrow:hover { background: var(--hover); }
   .lrow:last-child { border-radius: 0 0 14px 14px; }
   .rk { font: 600 12px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -325,6 +345,36 @@ export function dashboardHtml(code: string | null): string {
   .lrow.me:hover { background: var(--me-hov); }
   .youbadge { font: 700 9.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
               color: #fff; background: var(--accent); border-radius: 999px; padding: 3px 7px; }
+  /* share — appears only on YOUR card; opens the share menu */
+  .shbtn { display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+           font: 700 9.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+           color: var(--accent-deep); background: none; border: 1px solid var(--accent);
+           border-radius: 999px; padding: 3px 8px; transition: background .15s, color .15s; }
+  .shbtn:hover { background: var(--accent); color: #fff; }
+  .shbtn svg { width: 10px; height: 10px; display: block; }
+  .shmenu { position: absolute; z-index: 60; width: 252px; background: var(--card);
+            border-radius: 14px; box-shadow: 0 12px 40px -8px rgba(0,0,0,.35), 0 0 0 1px var(--line2);
+            padding: 10px; animation: shpop .18s cubic-bezier(.22,1,.36,1) both; }
+  @keyframes shpop { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+  /* preview slot: glimmer skeleton underneath, image fades in over it on load */
+  .shprev { position: relative; width: 100%; aspect-ratio: 1200/630; border-radius: 8px;
+            overflow: hidden; background: var(--skbg); margin-bottom: 8px; }
+  .shprev::before { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+                    background: linear-gradient(90deg, transparent, var(--skhi), transparent);
+                    animation: sksweep 1.8s ease-in-out infinite; }
+  .shprev img { position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+                opacity: 0; transition: opacity .35s ease-out; }
+  .shprev img.on { opacity: 1; }
+  .shprev .shfail { position: absolute; inset: 0; display: none; align-items: center;
+                    justify-content: center; text-align: center; padding: 0 14px;
+                    font: 600 11px/1.5 var(--mono); color: var(--muted); }
+  .shprev.err::before { animation: none; }
+  .shprev.err .shfail { display: flex; }
+  .shmenu button { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer;
+                   font: 600 12.5px/1 var(--sans); color: var(--ink); text-align: left;
+                   background: none; border: 0; border-radius: 8px; padding: 9px 10px; }
+  .shmenu button:hover { background: var(--hover); }
+  .shmenu button svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
   .delta { font: 700 10.5px/1 var(--mono); }
   .delta.up { color: var(--up); } .delta.down { color: var(--down); }
   .meter { position: relative; width: 108px; height: 10px; overflow: hidden;
@@ -371,10 +421,11 @@ export function dashboardHtml(code: string | null): string {
            height: 18px; display: grid; place-items: center; padding: 0 4px; }
   .pod.p1 .medal { bottom: -6px; height: 20px; min-width: 20px; font-size: 11px; }
   .podnm { margin-top: 11px; font-weight: 650; font-size: 13px; max-width: 100%;
-           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .podnm a { color: var(--ink); text-decoration: none; }
+           display: flex; align-items: center; justify-content: center; gap: 8px;
+           flex-wrap: wrap; }
+  .podnm a { color: var(--ink); text-decoration: none; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
   .podnm a:hover { color: var(--accent); }
-  .podnm .youbadge { margin-left: 5px; vertical-align: 1px; }
   .podsc { font: 800 20px/1 var(--mono); margin-top: 6px; font-variant-numeric: tabular-nums;
            color: var(--medal); }
   .pod.p1 .podsc { font-size: 26px; }
@@ -660,7 +711,7 @@ export function dashboardHtml(code: string | null): string {
   .notfound a { color: var(--accent); }
 
   @media (max-width: 960px) {
-    .shell { grid-template-columns: 1fr; }
+    .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     .side { position: static; height: auto; flex-direction: row; align-items: center;
             flex-wrap: wrap; padding: 10px 16px; overflow: visible; }
     .brand { padding: 0; }
@@ -669,6 +720,42 @@ export function dashboardHtml(code: string | null): string {
     .peek { margin-left: auto; }
     .topbar, .content { padding-left: 16px; padding-right: 16px; }
     .grid { grid-template-columns: 1fr; }
+  }
+  /* ---- phones: the three-across podium starves each column, so restage it —
+     champion becomes a full-width hero, 2nd + 3rd share the row beneath, and
+     the pedestal blocks go (the rank medals already carry that info). List
+     rows drop the decorative meter so name / stats / score get the width. */
+  @media (max-width: 640px) {
+    /* badge tooltips are absolutely positioned and can poke past the right
+       edge while hidden, giving the page a phantom horizontal scroll */
+    html, body { overflow-x: clip; }
+    .peek input { flex: none; width: 58px; }
+    .content { padding-top: 18px; padding-bottom: 48px; }
+    .cardhead { padding: 16px 16px 6px; }
+    .podium { grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 20px 16px;
+              align-items: start; }
+    .pod.p1 { order: -1; grid-column: 1 / -1; padding-bottom: 18px;
+              margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .ped { display: none; }
+    .pod.p2 .podcrown, .pod.p3 .podcrown { display: none; }
+    .pod.p1 .podav .ava { width: 72px; height: 72px; font-size: 26px; }
+    .pod.p1 .podnm { font-size: 14px; margin-top: 12px; }
+    .pod.p1 .podsc { font-size: 32px; margin-top: 8px; }
+    .podav .ava { width: 44px; height: 44px; font-size: 16px; }
+    .podsc { font-size: 18px; }
+    .podnm { font-size: 12.5px; gap: 6px; }
+    .podnm a { max-width: 140px; }
+    .podmeta { font-size: 10px; }
+    .podawards { gap: 4px; }
+    .lrow { grid-template-columns: 22px 30px minmax(0,1fr) auto;
+            gap: 11px; padding: 12px 16px; }
+    .meter { display: none; }
+    .sc { font-size: 14px; }
+    .lempty { padding: 28px 16px 32px; }
+    .mcell { padding: 12px 14px 14px; }
+    .mlab { font-size: 11.5px; gap: 6px; }
+    .mnum { font-size: 20px; }
+    .mdelta { font-size: 10px; line-height: 1.4; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
@@ -797,6 +884,12 @@ export function dashboardHtml(code: string | null): string {
   function hue(s){ let h = 0; for (let i = 0; i < s.length; i++) h = (h*31 + s.charCodeAt(i)) % 360; return h; }
   // Identity is a verified GitHub account — real avatar (server-provided
   // avatar_url, else github.com/<login>.png), letter fallback if it 404s.
+  // Poll repaints rebuild this HTML, recreating every <img> — without care the
+  // letter flashes through for a frame each time ("C" blink). Two guards:
+  // decoding="sync" paints cached images in the same frame as the swap, and
+  // once a src has loaded we stop drawing the letter under it entirely.
+  const AVOK = new Set();
+  function avOk(img){ AVOK.add(img.getAttribute('src')); }
   function avatar(login, url){
     const h = hue(login.toLowerCase());
     // Pastel fallback tints per theme: light chips on light, deep muted chips
@@ -806,10 +899,114 @@ export function dashboardHtml(code: string | null): string {
     const fg = dk ? 'hsl('+h+',55%,78%)' : 'hsl('+h+',48%,32%)';
     const src = url || ('https://github.com/'+encodeURIComponent(login)+'.png?size=64');
     return '<span class="ava" style="background:'+bg+';color:'+fg+'">'+
-      esc(login.charAt(0).toUpperCase())+
-      '<img src="'+esc(src)+'" alt="" loading="lazy" onerror="this.remove()">'+
+      (AVOK.has(src) ? '' : esc(login.charAt(0).toUpperCase()))+
+      '<img src="'+esc(src)+'" alt="" decoding="sync" onload="avOk(this)" onerror="this.remove()">'+
       '</span>';
   }
+  // ---- share menu ----------------------------------------------------------
+  // One floating menu at a time, anchored to the clicked share button.
+  // ?v=score on both URLs: every score change is a NEW url to X's crawler,
+  // so the unfurl cache never shows a stale card.
+  let shEl = null;
+  function shClose(){
+    if (!shEl) return;
+    shEl.remove(); shEl = null;
+    document.removeEventListener('click', shDocClose);
+  }
+  function shDocClose(ev){ if (shEl && !shEl.contains(ev.target)) shClose(); }
+  function shMenu(ev, login, rank, score){
+    ev.preventDefault(); ev.stopPropagation();
+    if (shEl){ shClose(); return; }
+    const total = (GLOBAL && GLOBAL.stats && GLOBAL.stats.players) || rank;
+    const link = location.origin+'/u/'+encodeURIComponent(login)+'?v='+score;
+    const img  = location.origin+'/og/'+encodeURIComponent(login)+'.png?v='+score;
+    const ic = {
+      x:  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-6.4L6.4 22H3.2l7.3-8.3L1.6 2H8l4.4 5.9L18.9 2zm-1.1 18.1h1.7L7.1 3.8H5.3l12.5 16.3z"/></svg>',
+      dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 19h16"/></svg>',
+      ln: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 10a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+      md: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M5.5 15v-6l2.75 3L11 9v6M15.5 9v4.5"/><path d="m13.5 12 2 2.3 2-2.3"/></svg>'
+    };
+    const m = document.createElement('div');
+    m.className = 'shmenu';
+    m.innerHTML =
+      '<div class="shprev"><img src="'+esc(img)+'" alt="" '+
+        'onload="this.classList.add(\\'on\\')" '+
+        'onerror="this.closest(\\'.shprev\\').classList.add(\\'err\\')">'+
+        '<span class="shfail">preview didn\\u2019t load. sharing still works.</span></div>'+
+      '<button onclick="shXCopy(this, \\''+esc(img)+'\\', \\''+esc(login)+'\\', '+rank+', '+total+', '+score+')">'+
+        ic.x+'Copy image &amp; open X</button>'+
+      '<button onclick="shDl(\\''+esc(img)+'\\', \\''+esc(login)+'\\')">'+ic.dl+'Download PNG</button>'+
+      '<button onclick="shCopyLink(this, \\''+esc(link)+'\\')">'+ic.ln+'Copy link</button>'+
+      '<button onclick="shBadge(this, \\''+esc(login)+'\\')">'+ic.md+'Copy README badge</button>';
+    document.body.appendChild(m);
+    const r = ev.currentTarget.getBoundingClientRect();
+    const left = Math.min(r.left, innerWidth - 268);
+    m.style.left = Math.max(8, left) + 'px';
+    m.style.top = (r.bottom + scrollY + 8) + 'px';
+    shEl = m;
+    setTimeout(function(){ document.addEventListener('click', shDocClose); }, 0);
+  }
+  // Copy the card PNG, then open the X composer with the text+link prefilled —
+  // the user pastes the image into the post (browsers can't attach it for us).
+  // Copy comes FIRST: the preview <img> already warmed the cache so the blob
+  // resolves fast enough to stay inside the click's transient activation, and
+  // once a new tab has focus the clipboard would refuse to write.
+  async function shXCopy(btn, img, login, rank, total, score){
+    const label = btn.lastChild;
+    let copied = false;
+    try {
+      label.textContent = 'copying\\u2026';
+      // Promise-flavored ClipboardItem: keeps the user-gesture alive in Safari.
+      const p = fetch(img).then(function(r){ if (!r.ok) throw 0; return r.blob(); });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': p })]);
+      copied = true;
+    } catch (e) {
+      // clipboard refused (browser/permission) — hand them the file instead
+      shDl(img, login);
+    }
+    // No URL in the tweet — X's crawler is too flaky to trust with the card;
+    // the pasted image IS the card. Copy is James's voice (see the badge tips):
+    // short, lowercase, cocky, never an em dash.
+    const flex = rank === 1 ? 'come and take it.' : 'coming for the crown.';
+    const text = 'CC-Rank #'+rank+'/'+total+'. '+fmt(score)+' pts on the global '+
+      'Claude Code leaderboard. '+flex+'\\n\\n'+location.origin;
+    const w = window.open('https://x.com/intent/post?text='+encodeURIComponent(text),
+      '_blank', 'noopener');
+    if (!w){ // popup blocked — next click re-copies instantly from cache
+      label.textContent = copied ? 'copied. click again for X' : 'click again for X';
+      return;
+    }
+    label.textContent = copied ? 'copied. paste it in your post' : 'downloaded. attach it';
+    setTimeout(shClose, 2200);
+  }
+  function shDl(img, login){
+    const a = document.createElement('a');
+    a.href = img; a.download = 'ccrank-'+login+'.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(shClose, 400);
+  }
+  // Markdown for a live rank badge in any GitHub README/profile. The badge
+  // links back to the user's share page.
+  async function shBadge(btn, login){
+    const label = btn.lastChild;
+    const md = '[![ccrank](' + location.origin + '/badge/' +
+      encodeURIComponent(login) + '.svg)](' + location.origin + '/u/' +
+      encodeURIComponent(login) + ')';
+    try {
+      await navigator.clipboard.writeText(md);
+      label.textContent = 'copied. paste it in your README';
+      setTimeout(shClose, 1400);
+    } catch (e) { label.textContent = md; }
+  }
+  async function shCopyLink(btn, link){
+    const label = btn.lastChild;
+    try {
+      await navigator.clipboard.writeText(link);
+      label.textContent = 'Copied \\u2713';
+      setTimeout(shClose, 900);
+    } catch (e) { label.textContent = link; }
+  }
+
   function msg(el, cls, text){ el.innerHTML = '<div class="msg '+cls+'">'+esc(text)+'</div>'; }
   function cmdBox(el, cmd, note){
     el.innerHTML =
@@ -892,7 +1089,9 @@ export function dashboardHtml(code: string | null): string {
     // below it. Subtract the rail there so the heatmap fits its real card and
     // today's column (far right) isn't pushed past the scroll edge.
     const rail = window.innerWidth > 960 ? 340 + 20 : 0;
-    DIMS.avail = Math.max(380, w - 64 /*content pad*/ - 44 /*card pad*/ - 42 /*y-axis*/ - rail);
+    // 240 floor (not 380): phones are narrower than the old minimum, which
+    // pushed the last heatmap column + month label past the card edge.
+    DIMS.avail = Math.max(240, w - 64 /*content pad*/ - 44 /*card pad*/ - 42 /*y-axis*/ - rail);
     MT = w > 1250 ? 22 : w < 600 ? 9 : 15;
   }
   function seriesMap(series){
@@ -932,6 +1131,7 @@ export function dashboardHtml(code: string | null): string {
   }
   let HEATSM = {};   // day -> {p,e,w,wm}; read by the tooltip on hover
   let chartAnimated = false; // entrance wave plays once, on the first mount
+  let boardAnimated = false; // board rise/podium choreography — same deal
   function chartHtml(series){
     const sm = seriesMap(series);
     HEATSM = sm;
@@ -1114,6 +1314,18 @@ export function dashboardHtml(code: string | null): string {
         '</span></span>';
     }).join('');
   }
+  // Share button — YOUR cards only, global board only (the card shows your
+  // GLOBAL rank; a room page would lie about the denominator).
+  function shareBtnHtml(r, withRoom){
+    const isMe = ME != null && r.id === ME;
+    if (!isMe || !withRoom) return '';
+    return '<button class="shbtn" title="share your card" '+
+      'onclick="shMenu(event, \\''+esc(r.login||r.name)+'\\', '+r.rank+', '+r.score+')">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '+
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+        '<path d="M4 12v7a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19v-7M12 15V3M7.5 7.5 12 3l4.5 4.5"/>'+
+      '</svg>share</button>';
+  }
   // Top-3 podium: 2nd | 1st | 3rd, the leader centered and raised.
   function podiumHtml(top, withRoom){
     return '<div class="podium">'+top.map(function(r){
@@ -1126,7 +1338,7 @@ export function dashboardHtml(code: string | null): string {
           '" target="_blank" rel="noopener">'+avatar(login, r.avatar)+
           '<span class="medal">'+r.rank+'</span></a>'+
         '<div class="podnm"><a href="https://github.com/'+encodeURIComponent(login)+
-          '" target="_blank" rel="noopener">'+esc(login)+'</a>'+you+'</div>'+
+          '" target="_blank" rel="noopener">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+'</div>'+
         '<div class="podsc">'+fmt(r.score)+'</div>'+
         '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div>'+
         ((r.awards||[]).length ? '<div class="podawards">'+awardsHtml(r)+'</div>' : '')+
@@ -1165,7 +1377,7 @@ export function dashboardHtml(code: string | null): string {
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+you+awardsHtml(r)+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
         '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
@@ -1532,7 +1744,9 @@ export function dashboardHtml(code: string | null): string {
     content.innerHTML =
       (CODE ? '' : heroHtml())+
       '<div class="grid">'+
-      '<section class="card span2">'+
+      // Entrance animations play once; poll repaints swap in place ("quiet")
+      // so live score updates don't re-run the whole rise choreography.
+      '<section class="card span2'+(boardAnimated ? ' quiet' : '')+'">'+
         '<div class="cardhead" style="padding-bottom:12px"><h3>Leaderboard</h3>'+
         '<span class="sub right">'+boardSub+'</span></div>'+
         boardHtml(rows, !CODE)+
@@ -1546,6 +1760,7 @@ export function dashboardHtml(code: string | null): string {
       '<div class="rail">'+(CODE ? inviteCard()+raceCard(data.today||[]) : onboardCard()+howCard())+'</div>'+
       '</div>';
     bindChart();
+    boardAnimated = true;
     // Arriving via an invite link? Prefill the join code inside the details.
     if (!CODE){
       const pre = new URLSearchParams(location.search).get('join');
