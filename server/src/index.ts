@@ -313,6 +313,27 @@ async function boardPayload(db: D1Database, code: string | null) {
         GROUP BY day ORDER BY day ASC`).bind(since, ...bindMembers).all()).results
     : []);
 
+  // Per-day contributors for the heatmap tooltip: who produced that day's
+  // points, biggest contributor first (top 5 + overflow count).
+  const whoRows = (ids.length || !code
+    ? (await db.prepare(`
+        SELECT e.day AS day, u.login AS login, u.avatar AS avatar, COUNT(*) AS n
+        FROM events e JOIN users u ON u.github_id = e.user_id
+        WHERE e.day >= ? ${memberFilter}
+        GROUP BY e.day, e.user_id
+        ORDER BY e.day ASC, n DESC, u.created_at ASC`).bind(since, ...bindMembers).all()).results
+    : []) as unknown as { day: string; login: string; avatar: string | null; n: number }[];
+  const whoByDay = new Map<string, { login: string; avatar: string | null; n: number }[]>();
+  for (const w of whoRows) {
+    if (!whoByDay.has(w.day)) whoByDay.set(w.day, []);
+    whoByDay.get(w.day)!.push({ login: w.login, avatar: w.avatar, n: w.n });
+  }
+  for (const r of series as any[]) {
+    const all = whoByDay.get(r.day as string) || [];
+    r.who = all.slice(0, 5);
+    r.whoMore = Math.max(0, all.length - 5);
+  }
+
   return {
     series,
     allTime: enrich(await standings()),

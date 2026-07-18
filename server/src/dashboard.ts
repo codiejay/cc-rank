@@ -145,6 +145,13 @@ export function dashboardHtml(code: string | null): string {
   .tip .d { font: 10.5px/1 var(--mono); color: var(--muted); margin-bottom: 5px; }
   .tip .v { font: 700 15px/1 var(--mono); }
   .tip .v small { font: 10.5px/1 var(--mono); color: var(--muted); font-weight: 400; }
+  /* who made the day: overlapped avatar stack, biggest contributor first */
+  .tip .tw { display: flex; align-items: center; margin-top: 8px; }
+  .tip .tw > span:not(.twn) { margin-left: -7px; display: flex; }
+  .tip .tw > span:first-child { margin-left: 0; }
+  .tip .tw .ava { width: 22px; height: 22px; font-size: 10px;
+                  box-shadow: 0 0 0 2px var(--card); }
+  .tip .twn { margin-left: 8px; font: 600 10.5px/1 var(--mono); color: var(--muted); }
 
   /* ---- metric strip ---- */
   .mstrip { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line);
@@ -389,25 +396,27 @@ export function dashboardHtml(code: string | null): string {
   .ht-body { padding: 11px 18px 12px; font: 12.5px/1.85 var(--mono); color: #F4EFE5; }
   .hl { display: block; white-space: nowrap; overflow: hidden; }
   .htype { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom;
-           animation: htype .8s steps(10, end) .35s both; }
-  @keyframes htype { from { width: 0; } to { width: 10ch; } }
+           animation: htype 1.05s steps(33, end) .35s both; }
+  @keyframes htype { from { width: 0; } to { width: 33ch; } }
   .hfade { animation: hfade .45s ease-out both; animation-delay: var(--d, 0s); }
   @keyframes hfade { from { opacity: 0; } to { opacity: 1; } }
   .hmut { color: rgba(244,239,229,.45); }
   .hok { color: #5BD98A; font-weight: 700; }
-  .hrow { display: grid; grid-template-columns: 3ch minmax(0,1fr) auto 7ch; gap: 12px;
-          align-items: center; animation: hrise .5s cubic-bezier(.22,1,.36,1) both;
-          animation-delay: var(--d, 0s); }
-  @keyframes hrise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-  .hrk { font-weight: 600; color: rgba(244,239,229,.4); font-variant-numeric: tabular-nums; }
-  .hrk.one { color: var(--accent); font-weight: 700; }
-  .hnm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hnm i { font-style: normal; font-size: 10.5px; color: var(--accent); margin-left: 6px; }
-  .htick { display: inline-flex; gap: 3px; }
-  .htick i { width: 5px; height: 10px; border-radius: 1px; background: rgba(244,239,229,.13); }
-  .htick i.on { background: var(--accent); }
-  .hsc { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
-  .heroterm.noanim .htype, .heroterm.noanim .hfade, .heroterm.noanim .hrow {
+  /* the ccrank statusline exactly as it renders inside Claude Code */
+  .slwrap { margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(244,239,229,.12);
+            font-size: 11px; line-height: 1.95; }
+  .sl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sl i { font-style: normal; }
+  .sl .k { color: #6EC1BE; }
+  .sl .hd { color: rgba(244,239,229,.28); }
+  .sl .yv { color: #E5C07B; }
+  .sl .gv { color: #5BD98A; }
+  .sl .rv { color: #E8756A; }
+  .sl .lnk { color: #96B7F0; text-decoration: underline; text-underline-offset: 2px; }
+  .hrank { color: var(--accent); font-weight: 700; display: inline-block;
+           animation: rankpop .55s cubic-bezier(.22,1,.36,1) 2.75s both; }
+  @keyframes rankpop { from { opacity: 0; transform: scale(1.7); } to { opacity: 1; transform: none; } }
+  .heroterm.noanim .htype, .heroterm.noanim .hfade, .heroterm.noanim .hrank {
     animation: none; width: auto; opacity: 1; transform: none; }
 
   .hero-pills { position: relative; display: flex; flex-wrap: wrap; gap: 10px;
@@ -420,7 +429,7 @@ export function dashboardHtml(code: string | null): string {
   .hpill:hover { transform: translateY(-1px); background: #000; }
   .hpill svg { width: 13px; height: 13px; color: var(--accent); flex: none; }
   @media (prefers-reduced-motion: reduce) {
-    .htype { width: 10ch; } .hfade, .hrow { opacity: 1; transform: none; }
+    .htype { width: 33ch; } .hfade, .hrank { opacity: 1; transform: none; }
   }
 
   /* ---- today's race bars ---- */
@@ -502,7 +511,16 @@ export function dashboardHtml(code: string | null): string {
   let ME = null, ME_WHO = null;
   try {
     const q = new URLSearchParams(location.search).get('me');
-    if (q && /^[0-9]{1,20}$/.test(q)) localStorage.setItem('ccrank_me', q);
+    if (q && /^[0-9]{1,20}$/.test(q)) {
+      localStorage.setItem('ccrank_me', q);
+      // Scrub ?me= from the address bar immediately: identity is saved, the
+      // URL shouldn't carry a personalized param people might copy around.
+      try {
+        const u = new URL(location.href);
+        u.searchParams.delete('me');
+        history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+      } catch { /* cosmetic */ }
+    }
     const stored = localStorage.getItem('ccrank_me');
     if (stored && /^[0-9]{1,20}$/.test(stored)) ME = Number(stored);
   } catch { /* storage may be unavailable; highlight is optional */ }
@@ -618,7 +636,8 @@ export function dashboardHtml(code: string | null): string {
   }
   function seriesMap(series){
     const m = {};
-    (series || []).forEach(function(r){ m[r.day] = { p: r.prompts||0, e: r.edits||0 }; });
+    (series || []).forEach(function(r){
+      m[r.day] = { p: r.prompts||0, e: r.edits||0, w: r.who||[], wm: r.whoMore||0 }; });
     return m;
   }
   function metricOf(v){ return metric === 'prompts' ? v.p : metric === 'edits' ? v.e : v.p + v.e; }
@@ -650,8 +669,10 @@ export function dashboardHtml(code: string | null): string {
     if (val <= q[2]) return 3;
     return 4;
   }
+  let HEATSM = {};   // day -> {p,e,w,wm}; read by the tooltip on hover
   function chartHtml(series){
     const sm = seriesMap(series);
+    HEATSM = sm;
     const h = heatWeeks();
     const vals = [];
     h.weeks.forEach(function(col){ col.forEach(function(d){
@@ -705,8 +726,16 @@ export function dashboardHtml(code: string | null): string {
       if (!cell) return;
       const d = cell.getAttribute('data-d'), p = +cell.getAttribute('data-p'), e = +cell.getAttribute('data-e');
       const nice = new Date(d+'T00:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      const v = HEATSM[d];
+      let who = '';
+      if (v && v.w && v.w.length){
+        who = '<div class="tw">'+v.w.map(function(u){
+          return '<span title="'+esc(u.login)+' \\u00B7 '+fmt(u.n)+' pts">'+avatar(u.login, u.avatar)+'</span>';
+        }).join('')+
+        '<span class="twn">'+esc(v.w[0].login)+(v.w.length > 1 || v.wm ? ' +'+(v.w.length-1+v.wm) : '')+'</span></div>';
+      }
       tip.innerHTML = '<div class="d">'+nice+'</div><div class="v">'+fmt(p+e)+
-        ' <small>pts &middot; '+fmt(p)+' prompts &middot; '+fmt(e)+' edits</small></div>';
+        ' <small>pts &middot; '+fmt(p)+' prompts &middot; '+fmt(e)+' edits</small></div>'+who;
       // Keep the tip INSIDE the scroll container — anything outside its box
       // gets clipped by overflow and never shows.
       tip.style.display = 'block';
@@ -935,35 +964,26 @@ export function dashboardHtml(code: string | null): string {
   }
 
   // ---- landing hero --------------------------------------------------------
-  // A fake "ccrank top" session on a slow liquid wash — but the board it
-  // prints is the REAL live global top 5. Types once, then stays put
-  // (noanim) so polling repaints don't replay the intro.
+  // A fake Claude Code session on the water wash — the product as it actually
+  // appears: you prompt, Claude edits, and the ccrank statusline at the bottom
+  // shows your rank (user count is the REAL live number). Types once, then
+  // stays put (noanim) so polling repaints don't replay the intro.
   let heroPlayed = false;
-  const HTICKS = 12;
-  function heroRow(r, i, max, d){
-    const filled = (max > 0 && r.score > 0) ? Math.max(1, Math.round(r.score / max * HTICKS)) : 0;
-    let ticks = '';
-    for (let k = 0; k < HTICKS; k++) ticks += '<i class="'+(k < filled ? 'on' : '')+'"></i>';
-    const login = r.login || r.name;
-    const streak = r.streak >= 2 ? '<i>\\uD83D\\uDD25'+r.streak+'d</i>' : '';
-    return '<span class="hrow" style="--d:'+d.toFixed(2)+'s">'+
-      '<b class="hrk'+(r.rank === 1 ? ' one' : '')+'">'+(r.rank < 10 ? '0' : '')+r.rank+'</b>'+
-      '<span class="hnm">'+esc(login)+streak+'</span>'+
-      '<span class="htick" aria-hidden="true">'+ticks+'</span>'+
-      '<b class="hsc">'+fmt(r.score)+'</b></span>';
-  }
   function heroHtml(){
-    const rows = ((GLOBAL && GLOBAL.allTime) || []).slice(0, 5);
-    const users = (GLOBAL && GLOBAL.stats || {}).players || 0;
-    const max = rows.length ? rows[0].score : 0;
-    let d = 1.35, lines = '<span class="hl hfade" style="--d:1.15s"><span class="hmut">'+
-      (rows.length
-        ? '<span class="hok">\\u2713</span> global board \\u00B7 '+fmt(users)+' user'+(users===1?'':'s')+' \\u00B7 live'
-        : '<span class="hok">\\u2713</span> connected \\u00B7 board is empty \\u2014 rank 01 is free')+
-      '</span></span>';
-    rows.forEach(function(r, i){ lines += heroRow(r, i, max, d += .18); });
-    lines += '<span class="hl hfade" style="--d:'+(d + .4).toFixed(2)+
-      's"><span class="ps">$</span> <span class="caret"></span></span>';
+    const users = Math.max(1, (GLOBAL && GLOBAL.stats || {}).players || 0);
+    const lines =
+      '<span class="hl hfade" style="--d:1.75s"><span class="hok">\\u25CF</span> 3 files edited '+
+        '<span class="hmut">\\u00B7 +214 \\u221238</span></span>'+
+      '<div class="slwrap hfade" style="--d:2.35s">'+
+        '<span class="sl"><i class="k">Model:</i> Opus 4.8 <i class="hd">|</i> '+
+          '<i class="k">Ctx(u):</i> 5.0% <i class="hd">|</i> '+
+          '<i class="k">Cost:</i> <i class="yv">$0.40</i> <i class="hd">|</i> '+
+          '<i class="gv">(+214</i><i class="hd">,</i><i class="rv">\\u221238)</i></span>'+
+        '<span class="sl"><i class="k">Session:</i> 26.0% <i class="hd">|</i> '+
+          '<b class="hrank">CC-Rank #1/'+fmt(users)+'</b> <i class="hd">\\u00B7</i> '+
+          '<i class="lnk">leaderboard \\u2197</i></span>'+
+      '</div>'+
+      '<span class="hl hfade" style="--d:3.15s"><span class="ps">&gt;</span> <span class="caret"></span></span>';
     const html =
       '<section class="hero">'+
         '<svg class="liq" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
@@ -988,11 +1008,11 @@ export function dashboardHtml(code: string | null): string {
         '<div class="hero-head"><h1>Every prompt counts.</h1>'+
           '<p>One global board for every Claude Code user \\u2014 prompts and edits, ranked live. Rooms if you want your own crew.</p></div>'+
         '<div class="heroterm'+(heroPlayed ? ' noanim' : '')+'" role="img" '+
-          'aria-label="terminal showing the live global leaderboard">'+
+          'aria-label="Claude Code session with the ccrank statusline showing your live rank">'+
           '<div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i>'+
-            '<span>ccrank \\u00B7 live</span></div>'+
+            '<span>claude code</span></div>'+
           '<div class="ht-body">'+
-            '<span class="hl"><span class="ps">$</span> <b class="htype">ccrank top</b></span>'+
+            '<span class="hl"><span class="ps">&gt;</span> <b class="htype">make the checkout page responsive</b></span>'+
             lines+
           '</div></div>'+
         '<div class="hero-pills">'+
