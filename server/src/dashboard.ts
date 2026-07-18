@@ -126,6 +126,24 @@ export function dashboardHtml(code: string | null): string {
   i.l4 { background: #8C3D1D; }
   .heat i[data-d] { cursor: crosshair; }
   .heat i[data-d]:hover { outline: 1.5px solid rgba(34,31,26,.45); outline-offset: -1px; }
+  /* Entrance: tiles drop into place in a diagonal wave (top-left first),
+     each with a delay from its --i order. Only runs while .anim is set —
+     poll repaints render fully in place, no replay. */
+  @keyframes heatIn {
+    from { opacity: 0; transform: scale(.18) translateY(-3px); }
+    60%  { opacity: 1; }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .heat.anim i { opacity: 0; }
+  .heat.anim i:not(.off) {
+    transform-origin: center;
+    animation: heatIn .42s cubic-bezier(.34,1.32,.5,1) both;
+    animation-delay: calc(var(--i,0) * 11ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .heat.anim i { opacity: 1; }
+    .heat.anim i:not(.off) { animation: none; }
+  }
   .wdays { display: flex; flex-direction: column; justify-content: space-between;
            font: 10.5px/1 var(--mono); color: var(--faint); text-align: right;
            width: 30px; flex: none; margin-top: 22px; }
@@ -672,6 +690,7 @@ export function dashboardHtml(code: string | null): string {
     return 4;
   }
   let HEATSM = {};   // day -> {p,e,w,wm}; read by the tooltip on hover
+  let chartAnimated = false; // entrance wave plays once, on the first mount
   function chartHtml(series){
     const sm = seriesMap(series);
     HEATSM = sm;
@@ -686,12 +705,13 @@ export function dashboardHtml(code: string | null): string {
     const q = [ vals[Math.floor(vals.length*.25)] || 1,
                 vals[Math.floor(vals.length*.5)]  || 2,
                 vals[Math.floor(vals.length*.75)] || 3 ];
-    const cols = h.weeks.map(function(col){
-      return '<div class="ccol">'+col.map(function(d){
-        if (!d) return '<i class="off"></i>';
+    const cols = h.weeks.map(function(col, wi){
+      return '<div class="ccol">'+col.map(function(d, di){
+        // diagonal wave: top-left tiles land first, sweeping to bottom-right
+        if (!d) return '<i class="off" style="--i:'+(wi+di)+'"></i>';
         const v = sm[d] || {p:0,e:0};
-        return '<i class="l'+levelFor(metricOf(v), q)+'" data-d="'+d+
-          '" data-p="'+v.p+'" data-e="'+v.e+'"></i>';
+        return '<i class="l'+levelFor(metricOf(v), q)+'" style="--i:'+(wi+di)+
+          '" data-d="'+d+'" data-p="'+v.p+'" data-e="'+v.e+'"></i>';
       }).join('')+'</div>';
     }).join('');
     // month labels above the first week-column of each month
@@ -713,7 +733,7 @@ export function dashboardHtml(code: string | null): string {
       '<div class="wdays">'+wd.map(function(l){ return '<span>'+l+'</span>'; }).join('')+'</div>'+
       '<div class="chartscroll"><div style="position:relative;padding-top:22px">'+
         '<div class="months" style="top:0;height:18px;line-height:18px">'+months+'</div>'+
-        '<div class="heat" style="--cell:'+h.cell+'px" id="dotchart">'+cols+none+'</div>'+
+        '<div class="heat'+(chartAnimated ? '' : ' anim')+'" style="--cell:'+h.cell+'px" id="dotchart">'+cols+none+'</div>'+
         '<div class="heatfoot"><span>less</span>'+
           [0,1,2,3,4].map(function(l){ return '<i class="l'+l+'"></i>'; }).join('')+
           '<span>more</span></div>'+
@@ -723,6 +743,7 @@ export function dashboardHtml(code: string | null): string {
   function bindChart(){
     const chart = document.getElementById('dotchart'), tip = document.getElementById('tip');
     if (!chart || !tip) return;
+    if (chart.classList.contains('anim')) chartAnimated = true; // first mount only
     chart.addEventListener('mouseover', function(ev){
       const cell = ev.target.closest ? ev.target.closest('i[data-d]') : null;
       if (!cell) return;

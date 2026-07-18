@@ -305,8 +305,12 @@ async function create() {
 
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Room created: ${c.b(name)} — you're in it.`);
+  // Auto-open the room page: shows the board AND teaches this browser the
+  // room code so the site's sidebar can link it from now on.
+  const roomUrl = withMe(cfg.server + "/r/" + code, cfg);
+  const opened = openBrowser(roomUrl);
   console.log(`  Code:      ${c.y(code)}`);
-  console.log(`  Dashboard: ${c.dim(withMe(cfg.server + "/r/" + code, cfg))}`);
+  console.log(`  Dashboard${opened ? " (opening)" : ""}: ${c.dim(roomUrl)}`);
   console.log(`\n  Invite friends — each of them runs:`);
   console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code}`)}\n`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
@@ -342,7 +346,11 @@ async function joinRoom() {
   console.log(`  Every prompt you send and file edit Claude makes scores you a point —`);
   console.log(`  one global score that follows you into every room. Only counts leave`);
   console.log(`  your machine — ${c.b("never your code")}.`);
-  console.log(`\n  Room board:      ${c.y(withMe(cfg.server + "/r/" + code, cfg))}`);
+  // Auto-open the room page: shows the board AND teaches this browser the
+  // room code so the site's sidebar can link it from now on.
+  const roomUrl = withMe(cfg.server + "/r/" + code, cfg);
+  const opened = openBrowser(roomUrl);
+  console.log(`\n  Room board${opened ? " (opening)" : ""}:  ${c.y(roomUrl)}`);
   console.log(`  Global board:    ${c.dim(withMe(cfg.server + "/", cfg))}`);
   console.log(`  What is ccrank?  ${c.dim("https://github.com/codiejay/cc-rank")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
