@@ -311,7 +311,7 @@ async function boardPayload(db: D1Database, code: string | null) {
   // All five data queries are independent of each other — run them in ONE
   // parallel wave instead of serially. This is the difference between ~1s and
   // ~200ms page data on D1.
-  const [daily, series, whoRows, allTimeRaw, todayRaw] = await Promise.all([
+  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows] = await Promise.all([
     hasPop
       ? db.prepare(`
           SELECT day, user_id AS id, COUNT(*) AS score FROM events e
@@ -338,6 +338,13 @@ async function boardPayload(db: D1Database, code: string | null) {
       : Promise.resolve([] as { day: string; login: string; avatar: string | null; n: number }[]),
     standings(),
     standings(utcDay(now)),
+    hasPop
+      ? db.prepare(`
+          SELECT e.user_id AS id, COUNT(*) AS n FROM events e
+          WHERE CAST(strftime('%H', e.ts/1000, 'unixepoch') AS INTEGER) < 5 ${memberFilter}
+          GROUP BY e.user_id`).bind(...bindMembers).all()
+          .then((r) => r.results as unknown as { id: number; n: number }[])
+      : Promise.resolve([] as { id: number; n: number }[]),
   ]);
 
   // ---- daily-winner streaks + rank movement vs yesterday -------------------
@@ -379,12 +386,76 @@ async function boardPayload(db: D1Database, code: string | null) {
     .sort((a, b) => (cumYesterday.get(b.id) || 0) - (cumYesterday.get(a.id) || 0) || a.created_at - b.created_at)
     .forEach((u, i) => yRank.set(u.id, i + 1));
 
+  // ---- badges --------------------------------------------------------------
+  // One holder per badge, recomputed on every load. Every badge has a hard
+  // qualification floor (volume + shape) so it can only be earned through
+  // sustained real use — see the badge study. Ties break by earliest account,
+  // matching the leaderboard rule.
+  const nightByUser = new Map(nightRows.map((r) => [r.id, r.n]));
+  const perDay = new Map<number, { day: string; n: number }[]>();
+  for (const r of daily) {
+    if (!perDay.has(r.id)) perDay.set(r.id, []);
+    perDay.get(r.id)!.push({ day: r.day, n: r.score });
+  }
+  const isWeekend = (d: string) => {
+    const w = new Date(d + "T00:00:00Z").getUTCDay();
+    return w === 0 || w === 6;
+  };
+  const bstats = (allTimeRaw as any[]).map((r) => {
+    const udays = perDay.get(r.id) || [];
+    // days that count toward consistency badges need >= 10 events (blocks
+    // "one token prompt at 11:59pm" streak-keeping)
+    const counted = udays.filter((d) => d.n >= 10).map((d) => d.day).sort();
+    let run = counted.length ? 1 : 0, longest = run;
+    for (let i = 1; i < counted.length; i++) {
+      run = Date.parse(counted[i] + "T00:00:00Z") - Date.parse(counted[i - 1] + "T00:00:00Z") === 86400000 ? run + 1 : 1;
+      if (run > longest) longest = run;
+    }
+    const wk = udays.filter((d) => isWeekend(d.day));
+    return {
+      id: r.id as number,
+      prompts: r.prompts as number, edits: r.edits as number, lines: r.lines as number,
+      total: (r.prompts + r.edits) as number,
+      bigDay: udays.reduce((m, d) => Math.max(m, d.n), 0),
+      activeDays: udays.length, countedDays: counted.length, longestRun: longest,
+      weekendDays: wk.length, weekendEvents: wk.reduce((s, d) => s + d.n, 0),
+      night: nightByUser.get(r.id) || 0,
+    };
+  });
+  type BStat = (typeof bstats)[number];
+  const awards = new Map<number, { key: string; label: string }[]>();
+  const crownIt = (
+    key: string, label: string,
+    qualifies: (s: BStat) => boolean, value: (s: BStat) => number, lowestWins = false
+  ) => {
+    const pool = bstats.filter(qualifies).sort(
+      (a, b) => (lowestWins ? value(a) - value(b) : value(b) - value(a)) ||
+        (createdAt.get(a.id) || 0) - (createdAt.get(b.id) || 0)
+    );
+    if (!pool.length) return;
+    const id = pool[0].id;
+    if (!awards.has(id)) awards.set(id, []);
+    awards.get(id)!.push({ key, label });
+  };
+  crownIt("oneshot", "one-shot chief", (s) => s.prompts >= 25 && s.edits >= 50, (s) => s.edits / s.prompts);
+  crownIt("conductor", "conductor", (s) => s.prompts >= 50 && s.edits >= 25, (s) => s.prompts);
+  crownIt("lifter", "heavy lifter", (s) => s.lines >= 2500 && s.edits >= 50, (s) => s.lines);
+  crownIt("surgeon", "surgeon", (s) => s.edits >= 75 && s.lines >= 500, (s) => s.lines / s.edits, true);
+  crownIt("streak", "streak", (s) => s.longestRun >= 3, (s) => s.longestRun);
+  crownIt("driver", "daily driver", (s) => s.countedDays >= 5, (s) => s.countedDays);
+  crownIt("bigday", "big day", (s) => s.bigDay >= 150, (s) => s.bigDay);
+  crownIt("owl", "night owl",
+    (s) => s.night >= 50 && s.total >= 200 && s.night / s.total >= 0.15, (s) => s.night / s.total);
+  crownIt("weekend", "weekend warrior",
+    (s) => s.weekendDays >= 3 && s.weekendEvents >= 100 && s.activeDays >= 5, (s) => s.weekendEvents / s.total);
+
   const enrich = (rows: any[]) =>
     rows.map((r) => {
       const prev = yRank.get(r.id);
       return {
         ...r,
         streak: streak.get(r.id) || 0,
+        awards: awards.get(r.id) || [],
         // +N = climbed N spots since yesterday, -N = dropped, null = new/no history
         delta: prev == null ? null : prev - r.rank,
       };

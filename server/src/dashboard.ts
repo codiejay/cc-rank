@@ -40,6 +40,7 @@ export function dashboardHtml(code: string | null): string {
     --up:#12A150; --down:#D92D20; --amber:#F5B301;
     /* podium medals — warm metallics that sit next to the coral accent */
     --gold:#E0A32E; --gold-soft:rgba(224,163,46,.13); --gold-glow:rgba(224,163,46,.34);
+    --award:#8A6210; --award-bg:rgba(224,163,46,.12); --award-bd:rgba(224,163,46,.38);
     --silver:#9A948B; --silver-soft:rgba(154,148,139,.13);
     --bronze:#C0794A; --bronze-soft:rgba(192,121,74,.13);
     --ink2:#4A463E; --ink3:#55514A;         /* secondary / tertiary text */
@@ -69,6 +70,7 @@ export function dashboardHtml(code: string | null): string {
     --accent-deep:#E89A72; --accent-soft:#3B2A20; --edits:#B39482;
     --up:#3DCF7C; --down:#F97066;
     --gold:#E6B655; --gold-soft:rgba(230,182,85,.16); --gold-glow:rgba(230,182,85,.30);
+    --award:#E6B655; --award-bg:rgba(230,182,85,.13); --award-bd:rgba(230,182,85,.30);
     --silver:#B4ADA2; --silver-soft:rgba(180,173,162,.14);
     --bronze:#D08A5A; --bronze-soft:rgba(208,138,90,.15);
     --ink2:#C9C2B4; --ink3:#B4AC9D;
@@ -284,6 +286,40 @@ export function dashboardHtml(code: string | null): string {
           border-radius: 999px; padding: 3px 7px; text-decoration: none; white-space: nowrap; }
   .streak { font: 700 10.5px/1 var(--mono); color: var(--accent-deep);
             background: var(--accent-soft); border-radius: 999px; padding: 3px 7px; white-space: nowrap; }
+  /* earned badges — one holder per badge, gold family so they read as trophies
+     next to the coral streak pill without competing with the accent */
+  .award { font: 700 9.5px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase;
+           color: var(--award); background: var(--award-bg); border: 1px solid var(--award-bd);
+           border-radius: 999px; padding: 3px 8px 3px 6px; white-space: nowrap;
+           display: inline-flex; align-items: center; gap: 4px; }
+  .award > svg { width: 10px; height: 10px; flex: none; display: block; }
+  /* hover card — terminal-dark surface with a gold wash, the badge glyph
+     featured big in a soft gold tile next to its name */
+  .award { position: relative; cursor: default; }
+  .awtip { position: absolute; bottom: calc(100% + 10px); left: 50%;
+           transform: translateX(-50%) translateY(4px); width: 212px;
+           background: radial-gradient(130% 95% at 16% -12%, rgba(230,182,85,.16), transparent 55%), var(--term);
+           border-radius: 12px; padding: 12px 13px 11px;
+           box-shadow: 0 14px 36px -10px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07);
+           opacity: 0; pointer-events: none; z-index: 40;
+           transition: opacity .16s ease, transform .16s ease;
+           text-transform: none; letter-spacing: 0; white-space: normal; text-align: left; }
+  .awtip::after { content: ""; position: absolute; top: 100%; left: 50%;
+                  transform: translateX(-50%); border: 6px solid transparent;
+                  border-top-color: var(--term); }
+  .awtip-hd { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .awtip-ico { width: 32px; height: 32px; border-radius: 10px; flex: none;
+               display: grid; place-items: center; color: var(--gold);
+               background: rgba(230,182,85,.13); box-shadow: inset 0 0 0 1px rgba(230,182,85,.3); }
+  .awtip-ico svg { width: 17px; height: 17px; display: block; }
+  .awtip-t { font: 700 10.5px/1.35 var(--mono); letter-spacing: .13em;
+             text-transform: uppercase; color: var(--gold); }
+  .awtip-x { font: 400 11.5px/1.55 var(--sans); color: var(--termink); opacity: .92; }
+  .award:hover .awtip, .award:focus-visible .awtip {
+    opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .awtip { transition: none; } }
+  .podawards { margin-top: 9px; display: flex; flex-wrap: wrap; justify-content: center;
+               gap: 5px; max-width: 100%; }
   /* viewer's own row (?me= / localStorage) — subtle, matches the accent system */
   .lrow.me { background: var(--me); }
   .lrow.me:hover { background: var(--me-hov); }
@@ -1040,6 +1076,44 @@ export function dashboardHtml(code: string | null): string {
       '<path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/>'+
       '<rect x="3.5" y="16" width="17" height="1.8" rx=".9"/></svg>';
   }
+  // Earned-badge pills — each badge gets its own glyph (same set as the badge
+  // study) and a hover blurb in the site voice explaining what it took.
+  function bIco(paths){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '+
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+paths+'</svg>';
+  }
+  const BADGES = {
+    oneshot:   { ico: bIco('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'),
+                 tip: 'barely prompts and Claude still does the most. highest edits per prompt. you need 25 prompts before this even counts, so no lucky one-offs.' },
+    conductor: { ico: bIco('<path d="M5 19 17 7"/><circle cx="18.5" cy="5.5" r="1.6"/>'),
+                 tip: 'sends the most prompts on the board. always in Claude\\u2019s ear.' },
+    lifter:    { ico: bIco('<path d="M4 9v6M8 7v10M16 7v10M20 9v6M8 12h8"/>'),
+                 tip: 'the most lines changed, period. big diffs, no fear.' },
+    surgeon:   { ico: bIco('<path d="M19 5 7 17l-3 1 1-3L17 3z"/>'),
+                 tip: 'tiny edits, every time. lowest lines per edit on the board.' },
+    streak:    { ico: bIco('<path d="M12 3c1 3-2 5-2 8a4 4 0 0 0 8 .5C18 8 16 5 12 3z"/>'),
+                 tip: 'longest run of back-to-back days. 10+ events a day or it doesn\\u2019t count \\u2014 no sneaking one prompt at midnight to keep it alive.' },
+    driver:    { ico: bIco('<rect x="4" y="6" width="16" height="14" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+                 tip: 'shows up the most days, full stop. streaks die when you miss a day. this one never does.' },
+    bigday:    { ico: bIco('<path d="M4 20h16M6 20v-8M12 20V5M18 20v-6"/>'),
+                 tip: 'the biggest single day anyone has ever put up here. come and take it.' },
+    owl:       { ico: bIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>'),
+                 tip: 'midnight to 5am. why are you awake?' },
+    weekend:   { ico: bIco('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
+                 tip: 'does most of their damage on saturdays and sundays.' }
+  };
+  function awardsHtml(r){
+    return (r.awards || []).map(function(a){
+      const b = BADGES[a.key];
+      if (!b) return '';
+      return '<span class="award" tabindex="0">'+b.ico+esc(a.label)+
+        '<span class="awtip" role="tooltip">'+
+          '<span class="awtip-hd"><span class="awtip-ico">'+b.ico+'</span>'+
+          '<span class="awtip-t">'+esc(a.label)+'</span></span>'+
+          '<span class="awtip-x">'+b.tip+'</span>'+
+        '</span></span>';
+    }).join('');
+  }
   // Top-3 podium: 2nd | 1st | 3rd, the leader centered and raised.
   function podiumHtml(top, withRoom){
     return '<div class="podium">'+top.map(function(r){
@@ -1055,6 +1129,7 @@ export function dashboardHtml(code: string | null): string {
           '" target="_blank" rel="noopener">'+esc(login)+'</a>'+you+'</div>'+
         '<div class="podsc">'+fmt(r.score)+'</div>'+
         '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div>'+
+        ((r.awards||[]).length ? '<div class="podawards">'+awardsHtml(r)+'</div>' : '')+
         '<div class="ped">'+r.rank+'</div>'+
       '</div>';
     }).join('')+'</div>';
@@ -1090,7 +1165,7 @@ export function dashboardHtml(code: string | null): string {
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+you+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+you+awardsHtml(r)+chips+streak+delta+'</div>'+
         '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
