@@ -38,6 +38,10 @@ export function dashboardHtml(code: string | null): string {
     --line:#EAE8E1; --line2:#DEDBD2;
     --accent:#D97757; --accent-deep:#B05730; --accent-soft:#F7E7DE; --edits:#7C6455;
     --up:#12A150; --down:#D92D20; --amber:#F5B301;
+    /* podium medals — warm metallics that sit next to the coral accent */
+    --gold:#E0A32E; --gold-soft:rgba(224,163,46,.13); --gold-glow:rgba(224,163,46,.34);
+    --silver:#9A948B; --silver-soft:rgba(154,148,139,.13);
+    --bronze:#C0794A; --bronze-soft:rgba(192,121,74,.13);
     --ink2:#4A463E; --ink3:#55514A;         /* secondary / tertiary text */
     --hover:#FBFAF7; --chipbg:#F1F0EA; --seg:#EEEDE7;
     --track:#EDEBE4;                         /* meter + race unfilled ticks */
@@ -64,6 +68,9 @@ export function dashboardHtml(code: string | null): string {
     --line:#2F2C24; --line2:#3E392F;
     --accent-deep:#E89A72; --accent-soft:#3B2A20; --edits:#B39482;
     --up:#3DCF7C; --down:#F97066;
+    --gold:#E6B655; --gold-soft:rgba(230,182,85,.16); --gold-glow:rgba(230,182,85,.30);
+    --silver:#B4ADA2; --silver-soft:rgba(180,173,162,.14);
+    --bronze:#D08A5A; --bronze-soft:rgba(208,138,90,.15);
     --ink2:#C9C2B4; --ink3:#B4AC9D;
     --hover:#2A261F; --chipbg:#332F26; --seg:#141310;
     --track:#332F27;
@@ -293,6 +300,60 @@ export function dashboardHtml(code: string | null): string {
   .lempty { padding: 34px 22px 38px; border-top: 1px solid var(--line); }
   .lempty b { display: block; font-size: 14px; margin-bottom: 4px; }
   .lempty span { color: var(--muted); font-size: 12.5px; }
+
+  /* ---- podium (top 3) ---- */
+  .podium { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+            align-items: end; padding: 22px 22px 20px; border-top: 1px solid var(--line);
+            background:
+              radial-gradient(120% 90% at 50% -10%, var(--gold-soft), transparent 60%); }
+  .pod { display: flex; flex-direction: column; align-items: center; text-align: center;
+         min-width: 0; animation: podrise .6s cubic-bezier(.22,1,.36,1) both;
+         animation-delay: calc(var(--i) * 120ms); }
+  @keyframes podrise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .pod.p1 { order: 2; --medal: var(--gold);   --medal-soft: var(--gold-soft); }
+  .pod.p2 { order: 1; --medal: var(--silver); --medal-soft: var(--silver-soft); }
+  .pod.p3 { order: 3; --medal: var(--bronze); --medal-soft: var(--bronze-soft); }
+  /* crown floats above #1 */
+  .podcrown { color: var(--gold); margin-bottom: 3px; filter: drop-shadow(0 1px 4px var(--gold-glow));
+              animation: crownfloat 3.2s ease-in-out 1s infinite; }
+  .podcrown svg { width: 24px; height: 18px; display: block; }
+  @keyframes crownfloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  .pod.p2 .podcrown, .pod.p3 .podcrown { visibility: hidden; }
+  .podav { position: relative; display: block; border-radius: 50%; text-decoration: none;
+           padding: 3px; background: var(--card);
+           box-shadow: 0 0 0 2px var(--medal), 0 6px 16px -8px rgba(0,0,0,.4); }
+  .pod.p1 .podav { box-shadow: 0 0 0 2.5px var(--gold), 0 0 22px -2px var(--gold-glow), 0 8px 20px -8px rgba(0,0,0,.45);
+                   animation: podglow 3s ease-in-out infinite; }
+  @keyframes podglow {
+    0%,100% { box-shadow: 0 0 0 2.5px var(--gold), 0 0 16px -3px var(--gold-glow), 0 8px 20px -8px rgba(0,0,0,.45); }
+    50%     { box-shadow: 0 0 0 2.5px var(--gold), 0 0 30px 1px var(--gold-glow), 0 8px 20px -8px rgba(0,0,0,.45); } }
+  .podav .ava { width: 46px; height: 46px; font-size: 17px; }
+  .pod.p1 .podav .ava { width: 60px; height: 60px; font-size: 22px; }
+  .medal { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+           font: 800 10px/1 var(--mono); color: #fff; background: var(--medal);
+           border: 2px solid var(--card); border-radius: 999px; min-width: 18px;
+           height: 18px; display: grid; place-items: center; padding: 0 4px; }
+  .pod.p1 .medal { bottom: -6px; height: 20px; min-width: 20px; font-size: 11px; }
+  .podnm { margin-top: 11px; font-weight: 650; font-size: 13px; max-width: 100%;
+           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .podnm a { color: var(--ink); text-decoration: none; }
+  .podnm a:hover { color: var(--accent); }
+  .podnm .youbadge { margin-left: 5px; vertical-align: 1px; }
+  .podsc { font: 800 20px/1 var(--mono); margin-top: 6px; font-variant-numeric: tabular-nums;
+           color: var(--medal); }
+  .pod.p1 .podsc { font-size: 26px; }
+  .podmeta { font: 700 10.5px/1 var(--mono); color: var(--muted); margin-top: 5px;
+             font-variant-numeric: tabular-nums; }
+  /* pedestal blocks — 1st tallest, giving the classic podium silhouette */
+  .ped { margin-top: 12px; width: 100%; border-radius: 8px 8px 0 0;
+         background: linear-gradient(180deg, var(--medal-soft), transparent);
+         border: 1px solid var(--line); border-bottom: none;
+         display: grid; place-items: center; color: var(--medal);
+         font: 800 22px/1 var(--mono); }
+  .pod.p1 .ped { height: 62px; } .pod.p2 .ped { height: 46px; } .pod.p3 .ped { height: 34px; }
+  .pod.me .podnm a { color: var(--accent-deep); }
+  @media (prefers-reduced-motion: reduce) {
+    .pod { animation: none; } .podcrown, .pod.p1 .podav { animation: none; } }
 
   /* ---- right rail ---- */
   .rail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
@@ -790,7 +851,12 @@ export function dashboardHtml(code: string | null): string {
   let MT = 15; // leaderboard meter ticks
   function measure(){
     const w = document.getElementById('content').clientWidth || 940;
-    DIMS.avail = Math.max(380, w - 64 /*content pad*/ - 44 /*card pad*/ - 42 /*y-axis*/);
+    // The Activity card no longer spans the full row — it shares the grid with
+    // the 340px rail (20px gap) above 960px viewport, and stacks full-width
+    // below it. Subtract the rail there so the heatmap fits its real card and
+    // today's column (far right) isn't pushed past the scroll edge.
+    const rail = window.innerWidth > 960 ? 340 + 20 : 0;
+    DIMS.avail = Math.max(380, w - 64 /*content pad*/ - 44 /*card pad*/ - 42 /*y-axis*/ - rail);
     MT = w > 1250 ? 22 : w < 600 ? 9 : 15;
   }
   function seriesMap(series){
@@ -968,10 +1034,44 @@ export function dashboardHtml(code: string | null): string {
     return '<div class="meter" style="width:'+(T*W-3)+'px" aria-hidden="true">'+
       '<i style="width:'+(filled ? filled*W-3 : 0)+'px"></i></div>';
   }
-  function rowsHtml(rows, withRoom){
+  // Crown for the #1 podium slot — solid concrete glyph, no sparkle.
+  function crownSvg(){
+    return '<svg viewBox="0 0 24 18" fill="currentColor" aria-hidden="true">'+
+      '<path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/>'+
+      '<rect x="3.5" y="16" width="17" height="1.8" rx=".9"/></svg>';
+  }
+  // Top-3 podium: 2nd | 1st | 3rd, the leader centered and raised.
+  function podiumHtml(top, withRoom){
+    return '<div class="podium">'+top.map(function(r){
+      const login = r.login || r.name;
+      const isMe = ME != null && r.id === ME;
+      const you = isMe ? '<span class="youbadge">you</span>' : '';
+      return '<div class="pod p'+r.rank+(isMe?' me':'')+'" style="--i:'+(r.rank-1)+'">'+
+        '<span class="podcrown">'+crownSvg()+'</span>'+
+        '<a class="podav" href="https://github.com/'+encodeURIComponent(login)+
+          '" target="_blank" rel="noopener">'+avatar(login, r.avatar)+
+          '<span class="medal">'+r.rank+'</span></a>'+
+        '<div class="podnm"><a href="https://github.com/'+encodeURIComponent(login)+
+          '" target="_blank" rel="noopener">'+esc(login)+'</a>'+you+'</div>'+
+        '<div class="podsc">'+fmt(r.score)+'</div>'+
+        '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div>'+
+        '<div class="ped">'+r.rank+'</div>'+
+      '</div>';
+    }).join('')+'</div>';
+  }
+  // Podium for the top 3, plain rows for the rest; falls back to a flat list
+  // when there aren't enough players to fill a podium.
+  function boardHtml(rows, withRoom){
     if (!rows.length) return '<div class="lempty"><b>Nothing counted yet'+(mode==='today'?' today':'')+'.</b>'+
       '<span>Restart Claude Code and send a prompt. It shows up here in seconds.</span></div>';
-    const max = rows[0].score;
+    if (rows.length < 3) return rowsHtml(rows, withRoom);
+    return podiumHtml(rows.slice(0, 3), withRoom)+
+      (rows.length > 3 ? rowsHtml(rows.slice(3), withRoom, rows[0].score) : '');
+  }
+  function rowsHtml(rows, withRoom, maxScore){
+    if (!rows.length) return '<div class="lempty"><b>Nothing counted yet'+(mode==='today'?' today':'')+'.</b>'+
+      '<span>Restart Claude Code and send a prompt. It shows up here in seconds.</span></div>';
+    const max = maxScore != null ? maxScore : rows[0].score;
     return rows.map(function(r, i){
       // Room chips are labels only — no links, no codes. Codes are join
       // credentials: you get one from a friend, never from this page.
@@ -1302,15 +1402,15 @@ export function dashboardHtml(code: string | null): string {
       }).join(''));
     return '<div class="grid">'+
       '<section class="card span2">'+
+        '<div class="cardhead" style="padding-bottom:12px"><h3>Leaderboard</h3>'+
+          '<span class="sk right" style="width:120px;height:11px;margin-left:auto"></span></div>'+
+        rows+
+      '</section>'+
+      '<section class="card">'+
         '<div class="cardhead"><h3>Activity</h3>'+
           '<span class="sk" style="width:132px;height:11px"></span></div>'+
         '<div class="chartwrap">'+chart+'</div>'+
         strip+
-      '</section>'+
-      '<section class="card">'+
-        '<div class="cardhead" style="padding-bottom:12px"><h3>Leaderboard</h3>'+
-          '<span class="sk right" style="width:120px;height:11px;margin-left:auto"></span></div>'+
-        rows+
       '</section>'+
       '<div class="rail">'+railA+railB+'</div>'+
     '</div>';
@@ -1358,15 +1458,15 @@ export function dashboardHtml(code: string | null): string {
       (CODE ? '' : heroHtml())+
       '<div class="grid">'+
       '<section class="card span2">'+
+        '<div class="cardhead" style="padding-bottom:12px"><h3>Leaderboard</h3>'+
+        '<span class="sub right">'+boardSub+'</span></div>'+
+        boardHtml(rows, !CODE)+
+      '</section>'+
+      '<section class="card">'+
         '<div class="cardhead"><h3>Activity</h3><span class="sub">last '+
           DIMS.weeks+' weeks &middot; UTC days</span></div>'+
         '<div class="chartwrap">'+chartBlock+'</div>'+
         stripHtml(data.series, totals)+
-      '</section>'+
-      '<section class="card">'+
-        '<div class="cardhead" style="padding-bottom:12px"><h3>Leaderboard</h3>'+
-        '<span class="sub right">'+boardSub+'</span></div>'+
-        rowsHtml(rows, !CODE)+
       '</section>'+
       '<div class="rail">'+(CODE ? inviteCard()+raceCard(data.today||[]) : onboardCard()+howCard())+'</div>'+
       '</div>';
