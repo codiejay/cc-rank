@@ -8,7 +8,8 @@
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create ccrank",
     "db:init": "wrangler d1 execute ccrank --remote --file=./schema.sql",
-    "db:init:local": "wrangler d1 execute ccrank --local --file=./schema.sql"
+    "db:init:local": "wrangler d1 execute ccrank --local --file=./schema.sql",
+    "db:backup": "wrangler d1 export ccrank --output=backup-$(date +%Y%m%d-%H%M%S).sql --remote"
   },
   "dependencies": {
     "hono": "^4.6.14"

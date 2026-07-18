@@ -3,7 +3,13 @@
 // Visual language lives in /DESIGN.md — warm product dashboard, app shell,
 // white cards, square-dot chart, mono numerals, one orange accent.
 export function dashboardHtml(code: string | null): string {
-  const initial = code ? JSON.stringify(code) : "null";
+  // Defense-in-depth: even though the caller only passes a CODE_RE-validated
+  // code, harden the serializer so a value could never break out of the inline
+  // <script>. JSON.stringify quotes/escapes it, then we unicode-escape <, > and
+  // / so a literal </script> can't appear in the source.
+  const initial = code
+    ? JSON.stringify(code).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\//g, "\\u002f")
+    : "null";
   return `<!doctype html>
 <html lang="en">
 <head>

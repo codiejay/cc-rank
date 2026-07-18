@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS rooms (
   owner      TEXT,                  -- GitHub login of whoever created the room
   created_at INTEGER NOT NULL
 );
+-- Room names are globally unique, case-insensitive, so a shared code always
+-- maps to one obvious room.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_name ON rooms(lower(name));
 
 -- Room membership: purely a grouping. Holds no counts of its own.
 -- user_id = users.github_id.

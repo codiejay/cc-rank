@@ -23,6 +23,18 @@ function utcDay(ts: number): string {
 }
 const json = (c: any, data: unknown, status = 200) => c.json(data, status);
 
+// Room codes use the unambiguous alphabet above, 1-6 chars. Used to validate
+// the /r/:code path param before it is echoed into the dashboard HTML.
+const CODE_RE = /^[A-Z2-9]{1,6}$/;
+
+// SHA-256 (hex) of a token. Session tokens are stored HASHED so a DB leak
+// can't be replayed as a live credential; the raw token lives only on the
+// client. See /api/login and userByToken.
+async function hashToken(t: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ---- rate limiting --------------------------------------------------------
 // Per-isolate in-memory token bucket. Not perfect (each Worker isolate keeps
 // its own counters), but it turns "try 890M room codes" from cheap into
@@ -46,8 +58,9 @@ type User = { id: number; login: string };
 
 async function userByToken(db: D1Database, token: string): Promise<User | null> {
   if (!token) return null;
+  // Tokens are stored hashed — look up by the hash of what the client sent.
   return db.prepare("SELECT github_id AS id, login FROM users WHERE token = ?")
-    .bind(token).first<User>();
+    .bind(await hashToken(token)).first<User>();
 }
 
 // ---- login ---------------------------------------------------------------
@@ -82,7 +95,11 @@ app.post("/api/login", async (c) => {
     return json(c, { error: "github_rejected" }, 401);
   }
 
+  // The client keeps the RAW token; we only ever persist its hash. NOTE: this
+  // change invalidates all pre-existing plaintext-token rows — those users must
+  // sign in again to re-mint a (hashed) token. Accepted, pre-approved break.
   const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
+  const tokenHash = await hashToken(token);
   const existing = await c.env.DB.prepare(
     "SELECT github_id FROM users WHERE github_id = ?"
   ).bind(gh.id).first();
@@ -91,12 +108,12 @@ app.post("/api/login", async (c) => {
     // Same person, new machine/session — re-mint our token, refresh display.
     await c.env.DB.prepare(
       "UPDATE users SET token = ?, login = ?, avatar = ? WHERE github_id = ?"
-    ).bind(token, gh.login, gh.avatar_url, gh.id).run();
+    ).bind(tokenHash, gh.login, gh.avatar_url, gh.id).run();
     return json(c, { token, githubId: gh.id, login: gh.login, avatar: gh.avatar_url, reclaimed: true });
   }
   await c.env.DB.prepare(
     "INSERT INTO users (github_id, login, avatar, token, created_at) VALUES (?, ?, ?, ?, ?)"
-  ).bind(gh.id, gh.login, gh.avatar_url, token, Date.now()).run();
+  ).bind(gh.id, gh.login, gh.avatar_url, tokenHash, Date.now()).run();
   return json(c, { token, githubId: gh.id, login: gh.login, avatar: gh.avatar_url, reclaimed: false });
 });
 
@@ -117,6 +134,7 @@ app.get("/api/whois", async (c) => {
 // Create a room -> returns its code. Auth via user token; the creator is
 // auto-joined (a room with zero members is useless).
 app.post("/api/rooms", async (c) => {
+  if (rateLimited(c, "createroom", 10)) return tooMany(c);
   const body = await c.req.json().catch(() => ({}));
   const user = await userByToken(c.env.DB, String(body?.token ?? ""));
   if (!user) return json(c, { error: "invalid token" }, 401);
@@ -140,8 +158,16 @@ app.post("/api/rooms", async (c) => {
           .bind(user.id, code, now),
       ]);
       return json(c, { code, name, owner: user.login });
-    } catch {
-      /* collision, try again */
+    } catch (e) {
+      // The unique index on lower(name) can fire between our pre-check and the
+      // INSERT (concurrent create). Distinguish it from a code (PRIMARY KEY)
+      // collision by the constraint named in the error: a name clash is
+      // permanent (return taken), a code clash is retryable.
+      const em = String((e as any)?.message ?? e ?? "");
+      const isUnique = /UNIQUE|constraint/i.test(em);
+      const isCode = /rooms\.code|\.code\b/i.test(em);
+      if (isUnique && !isCode) return json(c, { error: "room_name_taken" }, 409);
+      /* code collision (or unknown) — try again with a fresh code */
     }
   }
   return json(c, { error: "could not allocate room code" }, 500);
@@ -179,6 +205,7 @@ app.get("/api/rooms/:code/check", async (c) => {
 
 // Pre-flight for CREATE: is this room name still free (globally)?
 app.get("/api/check-room", async (c) => {
+  if (rateLimited(c, "checkroom", 60)) return tooMany(c);
   const name = String(c.req.query("name") ?? "").trim();
   if (!name) return json(c, { ok: false, reason: "empty" });
   const dup = await c.env.DB.prepare("SELECT code FROM rooms WHERE lower(name) = lower(?)")
@@ -191,6 +218,7 @@ app.get("/api/check-room", async (c) => {
 // Record a batch of events. Auth via the user's token. Events belong to the
 // USER only — one global stream, no room attribution.
 app.post("/api/events", async (c) => {
+  if (rateLimited(c, "events", 60)) return tooMany(c);
   const body = await c.req.json().catch(() => ({}));
   const token = String(body?.token ?? "");
   if (!token) return json(c, { error: "token required" }, 401);
@@ -212,7 +240,16 @@ app.post("/api/events", async (c) => {
     const value = Math.max(1, Math.min(100000, Math.floor(Number(e?.value) || 1)));
     batch.push(stmt.bind(user.id, kind, value, day, now));
   }
-  if (batch.length) await c.env.DB.batch(batch);
+  // Per-user per-UTC-day cap: record at most 2000 events/day. Bounds abuse and
+  // runaway clients while sitting far above any honest day's activity.
+  if (batch.length) {
+    const { n } = (await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM events WHERE user_id = ? AND day = ?"
+    ).bind(user.id, day).first<{ n: number }>()) ?? { n: 0 };
+    const remaining = Math.max(0, 2000 - n);
+    const toInsert = batch.slice(0, remaining);
+    if (toInsert.length) await c.env.DB.batch(toInsert);
+  }
   return json(c, { ok: true, recorded: batch.length });
 });
 
@@ -389,7 +426,15 @@ app.get("/api/rooms/:code", async (c) => {
 // Global standings: every user, ranked by their one event stream. Room chips
 // come from memberships (names only — codes are join credentials and must
 // never leave the server for rooms the viewer doesn't already have).
+// /api/global is fully public and identical for every viewer, but it fans out
+// into several D1 queries. Memoize the serialized body per isolate for a few
+// seconds so a burst of viewers doesn't re-run the whole fan-out each time.
+// Safe ONLY because there's zero per-user data in this response.
+let globalCache: { at: number; body: unknown } = { at: 0, body: null };
 app.get("/api/global", async (c) => {
+  if (globalCache.body && Date.now() - globalCache.at < 5000) {
+    return json(c, globalCache.body);
+  }
   const memberships = (await c.env.DB.prepare(`
     SELECT m.user_id AS id, COALESCE(r.name, 'unknown room') AS roomName
     FROM memberships m LEFT JOIN rooms r ON r.code = m.room_code
@@ -416,10 +461,12 @@ app.get("/api/global", async (c) => {
   const roomsList = (await c.env.DB.prepare(
     "SELECT name FROM rooms ORDER BY created_at ASC").all()).results;
 
-  return json(c, {
+  const payload = {
     stats, roomsList, series: board.series,
     allTime: withRooms(board.allTime), today: withRooms(board.today),
-  });
+  };
+  globalCache = { at: Date.now(), body: payload };
+  return json(c, payload);
 });
 
 // The calling user's own GLOBAL rank — used by the terminal statusline.
@@ -461,7 +508,26 @@ app.get("/apple-touch-icon.png", (c) =>
     "Cache-Control": "public, max-age=86400",
   }));
 
-app.get("/", (c) => c.html(dashboardHtml(null)));
-app.get("/r/:code", (c) => c.html(dashboardHtml(c.req.param("code").toUpperCase())));
+// CSP for the HTML pages. 'unsafe-inline' is REQUIRED by the dashboard's
+// inline-script / inline-style / inline-onclick architecture — the real XSS
+// defense is the CODE_RE validation below (a code that isn't [A-Z2-9]{1,6}
+// renders the global board, never reaching the HTML). What CSP buys here:
+// script-src 'self' blocks INJECTED external scripts, and frame-ancestors
+// 'none' blocks clickjacking. img-src allows GitHub avatars + the data: favicon.
+const CSP =
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' https://github.com https://*.githubusercontent.com data:; " +
+  "connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+
+app.get("/", (c) => {
+  c.header("Content-Security-Policy", CSP);
+  return c.html(dashboardHtml(null));
+});
+app.get("/r/:code", (c) => {
+  c.header("Content-Security-Policy", CSP);
+  const code = c.req.param("code").toUpperCase();
+  // Only a validated code is echoed into the page; anything else -> global board.
+  return c.html(dashboardHtml(CODE_RE.test(code) ? code : null));
+});
 
 export default app;
