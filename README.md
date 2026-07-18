@@ -1,12 +1,12 @@
 # 🏆 ccrank
 
 The global **Claude Code leaderboard**. Sign in with GitHub, and every prompt
-you send and file edit Claude makes scores you a point — one global board,
+you send and every file Claude edits scores you a point. One global board,
 every ccrank user, live in your terminal statusline and on a web dashboard.
 Want a board that's just your crew? Create a private room.
 
 It counts **prompts** and **file edits** via Claude Code's own hooks. It sends
-**only counts and metadata — never your code**.
+**counts and metadata only, never your code**.
 
 ```
 🥇  jay      prompts 128   edits 94   score 222
@@ -28,7 +28,7 @@ Code, and your prompts and edits start counting on the global board. Check
 your rank anytime with `ccrank status` or on the dashboard at
 `https://<the-server>/`.
 
-New machine? Just `ccrank login` again — GitHub is your identity, so there's
+New machine? Just `ccrank login` again. GitHub is your identity, so there's
 nothing else to recover.
 
 To stop: `npx github:codiejay/cc-rank leave`.
@@ -40,10 +40,10 @@ To stop: `npx github:codiejay/cc-rank leave`.
 
 ## Rooms (optional)
 
-Same global scores, filtered to your people — friends, teammates, coworkers.
+Same global scores, filtered to your people: friends, teammates, coworkers.
 
 ```bash
-# create one — prints a 6-character code to share
+# create one. prints a 6-character code to share
 npx github:codiejay/cc-rank create --name "The Squad"
 
 # everyone else joins with the code (signs them in if needed)
@@ -51,7 +51,7 @@ npx github:codiejay/cc-rank join ABC123
 ```
 
 The room board lives at `https://<the-server>/r/ABC123`. Your score is the
-same everywhere — rooms are just a private view of the global board.
+same everywhere. Rooms are just a private view of the global board.
 
 ---
 
@@ -83,7 +83,7 @@ your machine                          the server (Cloudflare Worker + D1)
 
 ## Host your own server (one-time, free, ~5 min)
 
-Requires a free [Cloudflare account](https://dash.cloudflare.com/sign-up) — no
+Requires a free [Cloudflare account](https://dash.cloudflare.com/sign-up), no
 domain, no credit card.
 
 ```bash
@@ -97,7 +97,7 @@ npm run db:create
 # create the tables
 npm run db:init
 
-# deploy — prints your https://ccrank.<you>.workers.dev URL
+# deploy. prints your https://ccrank.<you>.workers.dev URL
 npm run deploy
 ```
 
@@ -131,7 +131,7 @@ ccrank leave                         remove the hooks
 - Hooks send **counts and metadata only** (`prompt`/`edit`, a line count). Your
   prompts, file contents, and diffs **never leave your machine**.
 - Identity is your real GitHub account, verified server-side via GitHub's
-  device flow. Scope `read:user` — public profile only; ccrank can't touch
+  device flow. Scope `read:user`, public profile only. ccrank can't touch
   your code, repos, or orgs.
 - Numbers are self-reported (hooks run on your machine), so this is built for
   **bragging rights**, not tamper-proof competition. Be cool.

@@ -18,7 +18,7 @@ export function dashboardHtml(code: string | null): string {
 <meta name="theme-color" content="#F4F3EF" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='106 106 300 300'%3E%3Cg fill='%23736C5D'%3E%3Crect x='118' y='318' width='76' height='76' rx='19'/%3E%3Crect x='118' y='218' width='76' height='76' rx='19'/%3E%3Crect x='318' y='318' width='76' height='76' rx='19'/%3E%3C/g%3E%3Cg fill='%23D97757'%3E%3Crect x='218' y='318' width='76' height='76' rx='19'/%3E%3Crect x='218' y='218' width='76' height='76' rx='19'/%3E%3Crect x='218' y='118' width='76' height='76' rx='19'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-<title>ccrank — the global Claude Code leaderboard</title>
+<title>ccrank · the global Claude Code leaderboard</title>
 <script>
   // Theme before first paint (no light flash): stored choice, else system.
   (function(){
@@ -477,7 +477,10 @@ export function dashboardHtml(code: string | null): string {
                text-shadow: 0 1px 10px rgba(253,251,245,.85), 0 0 3px rgba(253,251,245,.7); }
   .hero-head h1 { margin: 0; font-size: clamp(24px, 3.4vw, 33px); font-weight: 750;
                   letter-spacing: -.02em; }
-  .hero-head p { margin: 8px 0 0; color: var(--ink3); font-size: 13.5px; }
+  /* two lines on desktop (break after "live."); on narrow screens the long
+     first line wraps balanced instead of leaving an orphan word */
+  .hero-head p { margin: 8px 0 0; color: var(--ink3); font-size: 13.5px;
+                 line-height: 1.7; text-wrap: balance; }
 
   .heroterm { position: relative; width: min(620px, 100%); margin: 0 auto;
               background: var(--term); border-radius: 14px; overflow: hidden; text-align: left;
@@ -714,7 +717,7 @@ export function dashboardHtml(code: string | null): string {
   function cmdBox(el, cmd, note){
     el.innerHTML =
       '<div class="cmd" title="click to copy">'+esc(cmd)+
-        '<span class="copyhint">click to copy &mdash; paste it in your terminal, then restart Claude Code</span></div>'+
+        '<span class="copyhint">click to copy, paste it in your terminal, then restart Claude Code</span></div>'+
       (note ? '<div class="msg ok">'+esc(note)+'</div>' : '');
     el.firstChild.onclick = function(){
       navigator.clipboard.writeText(cmd).then(function(){
@@ -729,15 +732,15 @@ export function dashboardHtml(code: string | null): string {
   function agentPrompt(code, roomName){
     const S = location.origin;
     const head = code
-      ? 'Help me join a ccrank room (a Claude Code leaderboard). Room code: '+code+'. My flow is JOIN — skip the flow question.'
+      ? 'Help me join a ccrank room (a Claude Code leaderboard). Room code: '+code+'. My flow is JOIN, so skip the flow question.'
       : roomName
-      ? 'Help me set up ccrank (the global Claude Code leaderboard). My flow is CREATE with the room name \\"'+String(roomName).replace(/"/g, '')+'\\" — skip the flow question and do not ask me for a name.'
-      : 'Help me set up ccrank (the global Claude Code leaderboard). First ask me ONE question and wait for my answer — which flow do I want:\\n  (a) GET ON THE BOARD (the default) — sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room — then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew — then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
-    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username — GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. Whenever you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name.\\n\\nFollow these steps exactly, in order:\\n'+
+      ? 'Help me set up ccrank (the global Claude Code leaderboard). My flow is CREATE with the room name \\"'+String(roomName).replace(/"/g, '')+'\\". Skip the flow question and do not ask me for a name.'
+      : 'Help me set up ccrank (the global Claude Code leaderboard). First ask me ONE question and wait for my answer. Which flow do I want:\\n  (a) GET ON THE BOARD (the default): sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room: then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew: then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
+    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. Whenever you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name.\\n\\nFollow these steps exactly, in order:\\n'+
       '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
       '2. If JOIN: verify the room exists with GET '+S+'/api/rooms/<CODE>/check. If \\"reason\\":\\"room_not_found\\" -> tell me the code looks wrong and stop.\\n'+
-      '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login. JOIN: npx github:codiejay/cc-rank join <CODE>. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\" (creating auto-joins me — no separate join needed).\\n'+
-      '4. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard — just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this — I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
+      '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login. JOIN: npx github:codiejay/cc-rank join <CODE>. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\" (creating auto-joins me, so no separate join needed).\\n'+
+      '4. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard, so just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this. I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
       '5. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
       '6. When it finishes, show me what it printed: my verified GitHub login, plus the room code + dashboard link if a room was involved (global board link otherwise).\\n'+
       '7. Tell me to restart Claude Code so my prompts and edits start counting.';
@@ -745,8 +748,8 @@ export function dashboardHtml(code: string | null): string {
   function copyAgent(code, outId){
     const out = document.getElementById(outId);
     navigator.clipboard.writeText(agentPrompt(code)).then(function(){
-      msg(out, 'ok', 'copied — paste it into Claude Code');
-    }, function(){ msg(out, 'err', 'could not copy — is the page focused?'); });
+      msg(out, 'ok', 'copied. paste it into Claude Code');
+    }, function(){ msg(out, 'err', 'couldn\\u2019t copy. is the page focused?'); });
     return false;
   }
 
@@ -759,11 +762,11 @@ export function dashboardHtml(code: string | null): string {
     msg(out, 'ok', 'checking…');
     try {
       const room = await (await fetch('/api/rooms/'+code+'/check')).json();
-      if (room.reason === 'room_not_found') return msg(out, 'err', 'Room '+code+' not found — double-check the code.');
+      if (room.reason === 'room_not_found') return msg(out, 'err', 'Room '+code+' not found. Double-check the code.');
       navigator.clipboard.writeText(agentPrompt(code)).then(function(){
-        msg(out, 'ok', 'Prompt copied — paste it into Claude Code. You\\u2019re joining '+(room.roomName||code)+'; your global score comes with you.');
-      }, function(){ msg(out, 'err', 'Could not copy — is the page focused?'); });
-    } catch { msg(out, 'err', 'Could not reach the server — try again.'); }
+        msg(out, 'ok', 'Prompt copied. Paste it into Claude Code. You\\u2019re joining '+(room.roomName||code)+', and your global score comes with you.');
+      }, function(){ msg(out, 'err', 'Couldn\\u2019t copy. Is the page focused?'); });
+    } catch { msg(out, 'err', 'Couldn\\u2019t reach the server. Try again.'); }
   }
 
   async function genCreate(){
@@ -773,11 +776,11 @@ export function dashboardHtml(code: string | null): string {
     msg(out, 'ok', 'checking…');
     try {
       const r = await (await fetch('/api/check-room?name='+encodeURIComponent(room))).json();
-      if (r.reason === 'room_name_taken') return msg(out, 'err', 'A room called "'+room+'" already exists — room names are unique. Pick another.');
+      if (r.reason === 'room_name_taken') return msg(out, 'err', 'A room called "'+room+'" already exists. Room names are unique, so pick another.');
       navigator.clipboard.writeText(agentPrompt(null, room)).then(function(){
-        msg(out, 'ok', 'Prompt copied — paste it into Claude Code to create \\u201C'+room+'\\u201D.');
-      }, function(){ msg(out, 'err', 'Could not copy — is the page focused?'); });
-    } catch { msg(out, 'err', 'Could not reach the server — try again.'); }
+        msg(out, 'ok', 'Prompt copied. Paste it into Claude Code to create \\u201C'+room+'\\u201D.');
+      }, function(){ msg(out, 'err', 'Couldn\\u2019t copy. Is the page focused?'); });
+    } catch { msg(out, 'err', 'Couldn\\u2019t reach the server. Try again.'); }
   }
 
   // ---- chart: daily columns of stacked square dots -------------------------
@@ -967,7 +970,7 @@ export function dashboardHtml(code: string | null): string {
   }
   function rowsHtml(rows, withRoom){
     if (!rows.length) return '<div class="lempty"><b>Nothing counted yet'+(mode==='today'?' today':'')+'.</b>'+
-      '<span>Restart Claude Code, send a prompt &mdash; it lands here in seconds.</span></div>';
+      '<span>Restart Claude Code and send a prompt. It shows up here in seconds.</span></div>';
     const max = rows[0].score;
     return rows.map(function(r, i){
       // Room chips are labels only — no links, no codes. Codes are join
@@ -1021,8 +1024,8 @@ export function dashboardHtml(code: string | null): string {
     const head = who ? 'You&rsquo;re in as @'+esc(who.login) : 'Get on the board';
     const tag  = who ? 'Signed in' : 'Start here';
     const hint = who
-      ? 'Your prompts and edits are counting on the global board. Rooms below if you want a private view for your crew.'
-      : 'One prompt in Claude Code sets everything up &mdash; sign in with GitHub (real auth, no typed names) and you&rsquo;re on the global board with every ccrank user.';
+      ? 'Your prompts and edits are scoring on the global board. Want a private view for your crew? Make a room below.'
+      : 'One prompt in Claude Code sets this up. Sign in with GitHub (real auth, no typed names) and you&rsquo;re on the global board with every ccrank user.';
     return '<section class="onboard"><div class="onb-in">'+
       '<div class="onb-head">'+claudeBurst('burst-ico')+'<h3>'+head+'</h3>'+
       '<span class="onb-tag">'+tag+'</span></div>'+
@@ -1045,8 +1048,8 @@ export function dashboardHtml(code: string | null): string {
       '<div class="pad" style="padding-top:6px">'+
       '<div class="scorehow"><kbd>prompt sent</kbd> to Claude Code <span class="pt">+1</span></div>'+
       '<div class="scorehow"><kbd>file edited</kbd> by Claude <span class="pt">+1</span></div>'+
-      '<div class="scorehow" style="color:var(--muted)">one global score &mdash; every room shows the same totals</div>'+
-      '<div class="scorehow" style="color:var(--muted)">counts only &mdash; code never leaves your machine</div>'+
+      '<div class="scorehow" style="color:var(--muted)">one global score, the same in every room</div>'+
+      '<div class="scorehow" style="color:var(--muted)">counts only. your code never leaves your machine</div>'+
       '</div></section>';
   }
   // The code starts behind a frosted-glass veil (anti shoulder-surf /
@@ -1092,7 +1095,7 @@ export function dashboardHtml(code: string | null): string {
     const tot = today.reduce(function(s, r){ return s + r.score; }, 0);
     let body;
     if (!top.length){
-      body = '<div class="none">No points yet today &mdash; the first prompt takes the lead.</div>';
+      body = '<div class="none">No points yet today. The first prompt takes the lead.</div>';
     } else {
       body = top.map(function(r, i){
         const pc = Math.round(r.score / tot * 100);
@@ -1203,7 +1206,8 @@ export function dashboardHtml(code: string | null): string {
             '<ellipse class="lq6" cx="330" cy="430" rx="240" ry="80" fill="#EFB08C" opacity=".8"/>'+
           '</g></svg>'+
         '<div class="hero-head"><h1>Every prompt counts.</h1>'+
-          '<p>One global board for every Claude Code user \\u2014 prompts and edits, ranked live. Rooms if you want your own crew.</p></div>'+
+          '<p><span>Every Claude Code user on one board. Every prompt you send and file Claude edits scores you a point, live.</span><br>'+
+            '<span>Want a board that\\u2019s just your crew? Make a private room.</span></p></div>'+
         '<div class="heroterm'+(heroPlayed ? ' noanim' : '')+'" role="img" '+
           'aria-label="Claude Code session with the ccrank statusline showing your live rank">'+
           '<div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i>'+
@@ -1230,7 +1234,7 @@ export function dashboardHtml(code: string | null): string {
   function copyHero(btn){
     navigator.clipboard.writeText(agentPrompt(null)).then(function(){
       const label = btn.childNodes[btn.childNodes.length - 1];
-      label.textContent = 'Copied \\u2014 paste it in Claude Code';
+      label.textContent = 'Copied. Paste it into Claude Code';
       setTimeout(function(){ label.textContent = 'Copy the agent prompt'; }, 2400);
     });
   }
@@ -1333,7 +1337,7 @@ export function dashboardHtml(code: string | null): string {
     const content = document.getElementById('content');
     if (NOTFOUND){
       content.innerHTML = '<section class="card notfound"><b>No room answers to '+esc(CODE)+'.</b>'+
-        '<span>Double-check the code &mdash; or <a href="/">start a new room</a>.</span></section>';
+        '<span>Double-check the code, or <a href="/">start a new room</a>.</span></section>';
       return;
     }
     if (!data){ // first fetch still in flight — show skeletons, not a blank page

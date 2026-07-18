@@ -135,14 +135,14 @@ async function deviceFlowToken() {
   // buried (e.g. an agent ran us in the background and forgot to relay it).
   if (process.platform === "darwin") {
     try {
-      const note = `Code ${start.user_code} ${copied ? "copied — just paste it" : ""} on the GitHub page`;
+      const note = `Code ${start.user_code} ${copied ? "copied, just paste it" : ""} on the GitHub page`;
       spawn("osascript", ["-e",
         `display notification ${JSON.stringify(note)} with title "ccrank" subtitle "GitHub sign-in"`],
         { detached: true, stdio: "ignore" }).unref();
     } catch { /* cosmetic */ }
   }
   console.log(`\n  Sign in with GitHub to prove who you are.`);
-  if (opened) console.log(`  ${c.g("✓")} GitHub just opened in your browser${copied ? ` — the code is in your clipboard, paste it` : ""}.`);
+  if (opened) console.log(`  ${c.g("✓")} GitHub just opened in your browser.${copied ? ` The code's in your clipboard, so just paste it.` : ""}`);
   console.log(`\n    Code:  ${c.y(start.user_code)}${copied ? c.dim("  (copied to clipboard)") : ""}`);
   console.log(`    Page:  ${c.b(uri)}${opened ? c.dim("  (already open)") : ""}`);
   console.log(c.dim(`\n  Tip: GitHub's green Authorize button wakes up after a second or two.`));
@@ -179,7 +179,7 @@ async function ensureUser({ force = false } = {}) {
 
   let ghToken = null;
   const cliToken = ghCliToken();
-  if (cliToken && (await askYesNo("You're signed into the gh CLI — sign in to ccrank with it (skips the browser step)?"))) {
+  if (cliToken && (await askYesNo("You're signed into the gh CLI. Sign in to ccrank with it (skips the browser step)?"))) {
     ghToken = cliToken;
   }
   if (!ghToken) ghToken = await deviceFlowToken();
@@ -270,8 +270,8 @@ async function login() {
   if (!cfg) return;
   const wrapped = finishInstall(cfg);
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
-  console.log(`  You're on the global board. Every prompt you send and file edit Claude`);
-  console.log(`  makes scores you a point. Only counts leave your machine — ${c.b("never your code")}.`);
+  console.log(`  You're on the global board. Every prompt you send and every file`);
+  console.log(`  Claude edits scores you a point. Only counts leave your machine, ${c.b("never your code")}.`);
   // Send them straight to their board — room if they have one, else global.
   // The ?me= link is always printed too (SSH/headless can't pop a browser).
   const boardUrl = withMe(cfg.roomCode ? cfg.server + "/r/" + cfg.roomCode : cfg.server + "/", cfg);
@@ -292,7 +292,7 @@ async function create() {
     created = await api("/api/rooms", "POST", { token: cfg.token, name });
   } catch (e) {
     if (e.message === "room_name_taken") {
-      console.error(`\n  A room named ${c.y(name)} already exists — room names must be unique.`);
+      console.error(`\n  A room named ${c.y(name)} already exists. Room names must be unique.`);
       console.error(`  Pick a different name and try again.\n`);
       process.exitCode = 1;
       return;
@@ -304,14 +304,14 @@ async function create() {
   const wrapped = finishInstall({ ...cfg, roomCode: code, roomName: name });
 
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
-  console.log(`  ${c.g("✓")} Room created: ${c.b(name)} — you're in it.`);
+  console.log(`  ${c.g("✓")} Room created: ${c.b(name)}. You're in it.`);
   // Auto-open the room page: shows the board AND teaches this browser the
   // room code so the site's sidebar can link it from now on.
   const roomUrl = withMe(cfg.server + "/r/" + code, cfg);
   const opened = openBrowser(roomUrl);
   console.log(`  Code:      ${c.y(code)}`);
   console.log(`  Dashboard${opened ? " (opening)" : ""}: ${c.dim(roomUrl)}`);
-  console.log(`\n  Invite friends — each of them runs:`);
+  console.log(`\n  Invite friends. Each of them runs:`);
   console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code}`)}\n`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
@@ -333,7 +333,7 @@ async function joinRoom() {
       saveConfig({ ...cfg, token: null, login: null });
       return fail(`Your saved session expired. Run "ccrank login" (or this command again) to sign back in with GitHub.`);
     }
-    if (e.message === "room not found") return fail(`No room answers to ${code} — double-check the code.`);
+    if (e.message === "room not found") return fail(`No room answers to ${code}. Double-check the code.`);
     throw e;
   }
 
@@ -343,9 +343,9 @@ async function joinRoom() {
   console.log(`  ${c.g("✓")} Joined ${c.b(res.roomName)}`);
   const who = res.owner ? `${c.b(res.owner)} invited you to` : `You're in`;
   console.log(`  ${who} a private room on the global ccrank board.`);
-  console.log(`  Every prompt you send and file edit Claude makes scores you a point —`);
-  console.log(`  one global score that follows you into every room. Only counts leave`);
-  console.log(`  your machine — ${c.b("never your code")}.`);
+  console.log(`  Every prompt you send and every file Claude edits scores you a point.`);
+  console.log(`  One global score that follows you into every room. Only counts leave`);
+  console.log(`  your machine, ${c.b("never your code")}.`);
   // Auto-open the room page: shows the board AND teaches this browser the
   // room code so the site's sidebar can link it from now on.
   const roomUrl = withMe(cfg.server + "/r/" + code, cfg);
@@ -371,7 +371,7 @@ async function status() {
   if (!cfg?.token) return console.log("Not signed in yet. Run: ccrank join <CODE>");
   try {
     const me = await api(`/api/me?token=${encodeURIComponent(cfg.token)}`);
-    console.log(`\n  ${c.y(me.login)} — global rank ${c.b("#" + me.rank + "/" + me.total)}, score ${c.g(me.score)}`);
+    console.log(`\n  ${c.y(me.login)} ${c.dim("·")} global rank ${c.b("#" + me.rank + "/" + me.total)}, score ${c.g(me.score)}`);
     for (const r of me.rooms || []) {
       console.log(`  ${c.dim("room")} ${c.b(r.name)} ${c.dim("· " + cfg.server + "/r/" + r.code)}`);
     }
@@ -401,8 +401,8 @@ function fail(msg) { console.error(`  ${msg}`); process.exitCode = 1; }
 
 function help() {
   console.log(`
-  ${c.b("ccrank")} — the global Claude Code leaderboard. Every prompt and edit
-  scores a point; sign in with GitHub and you're on the board with every
+  ${c.b("ccrank")} is the global Claude Code leaderboard. Every prompt and edit
+  scores a point. Sign in with GitHub and you're on the board with every
   ccrank user. Rooms are optional private groups viewing the same scores.
 
   ${c.y("ccrank login")}                   sign in with GitHub, get on the global board
@@ -414,7 +414,7 @@ function help() {
 
   Sign-in is GitHub device flow: you enter a one-time code at
   github.com/login/device (or reuse your gh CLI session if it's signed in).
-  Scope read:user — public profile only. New machine? Just "ccrank login" again.
+  Scope read:user, public profile only. New machine? Just "ccrank login" again.
 
   Options:
     --server <url>    point at a different ccrank server (or set CCRANK_SERVER)
