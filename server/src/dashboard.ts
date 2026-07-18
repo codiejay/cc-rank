@@ -10,6 +10,8 @@ export function dashboardHtml(code: string | null): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="theme-color" content="#F4F3EF" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='106 106 300 300'%3E%3Cg fill='%23736C5D'%3E%3Crect x='118' y='318' width='76' height='76' rx='19'/%3E%3Crect x='118' y='218' width='76' height='76' rx='19'/%3E%3Crect x='318' y='318' width='76' height='76' rx='19'/%3E%3C/g%3E%3Cg fill='%23D97757'%3E%3Crect x='218' y='318' width='76' height='76' rx='19'/%3E%3Crect x='218' y='218' width='76' height='76' rx='19'/%3E%3Crect x='218' y='118' width='76' height='76' rx='19'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <title>ccrank — the global Claude Code leaderboard</title>
 <style>
   :root {
@@ -37,9 +39,8 @@ export function dashboardHtml(code: string | null): string {
           padding: 18px 14px 20px; display: flex; flex-direction: column; gap: 4px;
           position: sticky; top: 0; height: 100vh; overflow-y: auto; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
-  .mark { width: 28px; height: 28px; border-radius: 8px; background: var(--ink);
-          color: #fff; display: grid; place-items: center;
-          font: 700 12px/1 var(--mono); letter-spacing: -.02em; flex: none; }
+  .mark { display: grid; place-items: center; flex: none; }
+  .mark svg { width: 26px; height: 26px; display: block; }
   .brand b { font-size: 15px; letter-spacing: -.01em; }
   .livechip { margin-left: auto; display: flex; align-items: center; gap: 6px;
               font: 10px/1 var(--mono); letter-spacing: .1em; color: var(--muted); }
@@ -458,7 +459,7 @@ export function dashboardHtml(code: string | null): string {
 <div class="shell">
 
   <aside class="side">
-    <div class="brand"><span class="mark">cc</span><b>ccrank</b>
+    <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>ccrank</b>
       <span class="livechip"><span class="dot"></span>LIVE</span></div>
     <div class="navsec">Menu</div>
     <a class="nav" id="navHome" href="/">
@@ -566,8 +567,8 @@ export function dashboardHtml(code: string | null): string {
       '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
       '2. If JOIN: verify the room exists with GET '+S+'/api/rooms/<CODE>/check. If \\"reason\\":\\"room_not_found\\" -> tell me the code looks wrong and stop.\\n'+
       '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login. JOIN: npx github:codiejay/cc-rank join <CODE>. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\" (creating auto-joins me — no separate join needed).\\n'+
-      '4. The command handles GitHub sign-in ITSELF: it opens github.com/login/device in my browser and copies the one-time code to my clipboard. Your job: within ~10 seconds of starting it, READ ITS OUTPUT and tell me exactly: \\"A GitHub page should have opened — paste the code from your clipboard. If nothing opened, go to github.com/login/device and enter <CODE FROM OUTPUT>.\\" Always show the actual code. The green Authorize button takes a couple seconds to become clickable — tell me that too.\\n'+
-      '5. Keep checking the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
+      '4. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard — just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this — I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
+      '5. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
       '6. When it finishes, show me what it printed: my verified GitHub login, plus the room code + dashboard link if a room was involved (global board link otherwise).\\n'+
       '7. Tell me to restart Claude Code so my prompts and edits start counting.';
   }

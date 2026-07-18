@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="106 106 300 300" width="300" height="300">
+  <!-- ccrank: square-dot podium (2nd / 1st / 3rd), transparent background -->
+  <!-- 2nd place, left, 2 dots -->
+  <g fill="#736C5D">
+    <rect x="118" y="318" width="76" height="76" rx="19"/>
+    <rect x="118" y="218" width="76" height="76" rx="19"/>
+  </g>
+  <!-- 1st place, center, 3 dots, coral -->
+  <g fill="#D97757">
+    <rect x="218" y="318" width="76" height="76" rx="19"/>
+    <rect x="218" y="218" width="76" height="76" rx="19"/>
+    <rect x="218" y="118" width="76" height="76" rx="19"/>
+  </g>
+  <!-- 3rd place, right, 1 dot -->
+  <g fill="#736C5D">
+    <rect x="318" y="318" width="76" height="76" rx="19"/>
+  </g>
+</svg>

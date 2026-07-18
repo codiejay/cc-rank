@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { dashboardHtml } from "./dashboard";
+import { appleTouchIconBytes } from "./appleTouchIcon";
 
 type Bindings = { DB: D1Database };
 
@@ -397,6 +398,12 @@ app.get("/api/me", async (c) => {
 });
 
 // ---- dashboard -----------------------------------------------------------
+
+app.get("/apple-touch-icon.png", (c) =>
+  c.body(appleTouchIconBytes(), 200, {
+    "Content-Type": "image/png",
+    "Cache-Control": "public, max-age=86400",
+  }));
 
 app.get("/", (c) => c.html(dashboardHtml(null)));
 app.get("/r/:code", (c) => c.html(dashboardHtml(c.req.param("code").toUpperCase())));

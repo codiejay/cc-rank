@@ -131,6 +131,16 @@ async function deviceFlowToken() {
   const uri = start.verification_uri || "https://github.com/login/device";
   const copied = toClipboard(start.user_code);
   const opened = openBrowser(uri);
+  // Native notification so the code reaches the user even if this output is
+  // buried (e.g. an agent ran us in the background and forgot to relay it).
+  if (process.platform === "darwin") {
+    try {
+      const note = `Code ${start.user_code} ${copied ? "copied — just paste it" : ""} on the GitHub page`;
+      spawn("osascript", ["-e",
+        `display notification ${JSON.stringify(note)} with title "ccrank" subtitle "GitHub sign-in"`],
+        { detached: true, stdio: "ignore" }).unref();
+    } catch { /* cosmetic */ }
+  }
   console.log(`\n  Sign in with GitHub to prove who you are.`);
   if (opened) console.log(`  ${c.g("✓")} GitHub just opened in your browser${copied ? ` — the code is in your clipboard, paste it` : ""}.`);
   console.log(`\n    Code:  ${c.y(start.user_code)}${copied ? c.dim("  (copied to clipboard)") : ""}`);
