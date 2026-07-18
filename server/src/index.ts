@@ -267,14 +267,44 @@ async function boardPayload(db: D1Database, code: string | null) {
     }));
   };
 
+  const now = Date.now();
+  const since = utcDay(now - 364 * 86400000);
+  const hasPop = ids.length || !code;
+
+  // All five data queries are independent of each other — run them in ONE
+  // parallel wave instead of serially. This is the difference between ~1s and
+  // ~200ms page data on D1.
+  const [daily, series, whoRows, allTimeRaw, todayRaw] = await Promise.all([
+    hasPop
+      ? db.prepare(`
+          SELECT day, user_id AS id, COUNT(*) AS score FROM events e
+          WHERE 1=1 ${memberFilter} GROUP BY day, user_id`).bind(...bindMembers).all()
+          .then((r) => r.results as unknown as { day: string; id: number; score: number }[])
+      : Promise.resolve([] as { day: string; id: number; score: number }[]),
+    hasPop
+      ? db.prepare(`
+          SELECT day,
+                 SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END) AS prompts,
+                 SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END) AS edits
+          FROM events e WHERE day >= ? ${memberFilter}
+          GROUP BY day ORDER BY day ASC`).bind(since, ...bindMembers).all()
+          .then((r) => r.results)
+      : Promise.resolve([]),
+    hasPop
+      ? db.prepare(`
+          SELECT e.day AS day, u.login AS login, u.avatar AS avatar, COUNT(*) AS n
+          FROM events e JOIN users u ON u.github_id = e.user_id
+          WHERE e.day >= ? ${memberFilter}
+          GROUP BY e.day, e.user_id
+          ORDER BY e.day ASC, n DESC, u.created_at ASC`).bind(since, ...bindMembers).all()
+          .then((r) => r.results as unknown as { day: string; login: string; avatar: string | null; n: number }[])
+      : Promise.resolve([] as { day: string; login: string; avatar: string | null; n: number }[]),
+    standings(),
+    standings(utcDay(now)),
+  ]);
+
   // ---- daily-winner streaks + rank movement vs yesterday -------------------
   // Derived from the same global stream, over this board's population.
-  const daily = (ids.length || !code
-    ? (await db.prepare(`
-        SELECT day, user_id AS id, COUNT(*) AS score FROM events e
-        WHERE 1=1 ${memberFilter} GROUP BY day, user_id`).bind(...bindMembers).all()).results
-    : []) as { day: string; id: number; score: number }[];
-
   const createdAt = new Map(users.map((u) => [u.id, u.created_at]));
   const byDay = new Map<string, { id: number; score: number }[]>();
   for (const r of daily) {
@@ -300,7 +330,6 @@ async function boardPayload(db: D1Database, code: string | null) {
   }
 
   // Rank movement: today's all-time rank vs rank as of end of yesterday.
-  const now = Date.now();
   const yesterday = utcDay(now - 86400000);
   const startOfToday = Date.parse(utcDay(now) + "T00:00:00Z");
   const cumYesterday = new Map<number, number>();
@@ -324,28 +353,8 @@ async function boardPayload(db: D1Database, code: string | null) {
       };
     });
 
-  // Daily activity series for the dashboard's contribution heatmap
-  // (up to a GitHub-style year of days).
-  const since = utcDay(now - 364 * 86400000);
-  const series = (ids.length || !code
-    ? (await db.prepare(`
-        SELECT day,
-               SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END) AS prompts,
-               SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END) AS edits
-        FROM events e WHERE day >= ? ${memberFilter}
-        GROUP BY day ORDER BY day ASC`).bind(since, ...bindMembers).all()).results
-    : []);
-
   // Per-day contributors for the heatmap tooltip: who produced that day's
   // points, biggest contributor first (top 5 + overflow count).
-  const whoRows = (ids.length || !code
-    ? (await db.prepare(`
-        SELECT e.day AS day, u.login AS login, u.avatar AS avatar, COUNT(*) AS n
-        FROM events e JOIN users u ON u.github_id = e.user_id
-        WHERE e.day >= ? ${memberFilter}
-        GROUP BY e.day, e.user_id
-        ORDER BY e.day ASC, n DESC, u.created_at ASC`).bind(since, ...bindMembers).all()).results
-    : []) as unknown as { day: string; login: string; avatar: string | null; n: number }[];
   const whoByDay = new Map<string, { login: string; avatar: string | null; n: number }[]>();
   for (const w of whoRows) {
     if (!whoByDay.has(w.day)) whoByDay.set(w.day, []);
@@ -359,8 +368,8 @@ async function boardPayload(db: D1Database, code: string | null) {
 
   return {
     series,
-    allTime: enrich(await standings()),
-    today: enrich(await standings(utcDay(now))),
+    allTime: enrich(allTimeRaw),
+    today: enrich(todayRaw),
   };
 }
 
