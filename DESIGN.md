@@ -64,6 +64,31 @@ Type: system sans for UI (13–15px), `ui-monospace` for all data. Big metric
 numbers 24px/700 mono, tight letter-spacing. Self-contained page — no
 external fonts or assets, ever (CSP-friendly).
 
+### Dark mode (added 2026-07-18)
+
+Warm charcoal, same DNA — never neon, never cool grays. All surface colors go
+through CSS variables; `:root[data-theme="dark"]` overrides them (espresso
+greige grounds `#161511/#1B1915/#242119`, cream ink `#F1EDE3`, same coral
+accent; `--accent-deep` brightens to `#E89A72` since it's *text* on dark).
+Rules for new UI:
+
+- **Never hardcode a surface/text hex in a component rule** — add a token pair
+  (light + dark) to the two `:root` blocks. Existing pairs cover hovers, chip
+  bgs, tick tracks (`--track`), skeletons, heatmap ramp (`--h0..--h4` —
+  dark runs ember-dark → bright coral, brightest = most), terminals
+  (`--term/--termbar/--termink`), ink-block buttons (`--onink`: buttons that
+  are ink-on-light become cream-on-dark automatically).
+- Theme boots pre-paint from a `<head>` script (localStorage `ccrank_theme`,
+  else `prefers-color-scheme`) — no flash. Sun/moon toggle in the topbar,
+  synced across tabs via the storage event; toggling repaints so JS-computed
+  colors re-derive.
+- `avatar()` fallback tints are theme-aware (same hue hash; deep chips +
+  lifted text on dark). Any new JS-computed color must check `themeNow()`.
+- Floating dark blocks (terminals, pills, tooltips) get a faint
+  `rgba(255,255,255,.08)` ring in dark so they don't melt into the cards.
+- The hero wash deepens to night water via `[data-theme="dark"]` overrides on
+  the SVG gradient stops + vein ellipse fills — palette tones only, as ever.
+
 ## 3. Components
 
 - **Sidebar** — brand (ink rounded square, mono "cc"), pulsing LIVE dot,

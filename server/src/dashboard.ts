@@ -19,6 +19,17 @@ export function dashboardHtml(code: string | null): string {
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='106 106 300 300'%3E%3Cg fill='%23736C5D'%3E%3Crect x='118' y='318' width='76' height='76' rx='19'/%3E%3Crect x='118' y='218' width='76' height='76' rx='19'/%3E%3Crect x='318' y='318' width='76' height='76' rx='19'/%3E%3C/g%3E%3Cg fill='%23D97757'%3E%3Crect x='218' y='318' width='76' height='76' rx='19'/%3E%3Crect x='218' y='218' width='76' height='76' rx='19'/%3E%3Crect x='218' y='118' width='76' height='76' rx='19'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <title>ccrank — the global Claude Code leaderboard</title>
+<script>
+  // Theme before first paint (no light flash): stored choice, else system.
+  (function(){
+    var t; try { t = localStorage.getItem('ccrank_theme'); } catch (e) {}
+    if (t !== 'light' && t !== 'dark')
+      t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', t === 'dark' ? '#161511' : '#F4F3EF');
+  })();
+</script>
 <style>
   :root {
     color-scheme: light;
@@ -27,9 +38,45 @@ export function dashboardHtml(code: string | null): string {
     --line:#EAE8E1; --line2:#DEDBD2;
     --accent:#D97757; --accent-deep:#B05730; --accent-soft:#F7E7DE; --edits:#7C6455;
     --up:#12A150; --down:#D92D20; --amber:#F5B301;
+    --ink2:#4A463E; --ink3:#55514A;         /* secondary / tertiary text */
+    --hover:#FBFAF7; --chipbg:#F1F0EA; --seg:#EEEDE7;
+    --track:#EDEBE4;                         /* meter + race unfilled ticks */
+    --skbg:#EFEDE6; --skhi:rgba(255,252,245,.7);
+    --me:#FBF4EE; --me-hov:#F8EDE4;
+    --navhov:rgba(255,255,255,.6);
+    --h0:#F0EDE6; --h1:#F6DFD2; --h2:#EDB795; --h3:#D97757; --h4:#8C3D1D;
+    --heathov:rgba(34,31,26,.45);
+    --term:#1E1913; --termbar:#2A241C; --termink:#F4EFE5; --cmdbg:#23201A;
+    --onink:#FFFFFF; --inkbtn-hov:#000000;   /* ink-block buttons: text + hover */
+    --pill-hov:#000000;
+    --veil1:rgba(255,255,255,.28); --veil2:rgba(255,255,255,.08);
     --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
     --shadow: 0 1px 2px rgba(35,28,15,.04), 0 0 0 1px var(--line);
+  }
+  /* Dark: warm charcoal, same DNA — espresso greige grounds, cream ink, the
+     one coral accent. Designed values per surface, never naive inversion
+     (DESIGN.md bans dark-mode-with-neon). */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --side:#161511; --bg:#1B1915; --card:#242119;
+    --ink:#F1EDE3; --muted:#9C9587; --faint:#57524A;
+    --line:#2F2C24; --line2:#3E392F;
+    --accent-deep:#E89A72; --accent-soft:#3B2A20; --edits:#B39482;
+    --up:#3DCF7C; --down:#F97066;
+    --ink2:#C9C2B4; --ink3:#B4AC9D;
+    --hover:#2A261F; --chipbg:#332F26; --seg:#141310;
+    --track:#332F27;
+    --skbg:#2C2921; --skhi:rgba(255,250,240,.06);
+    --me:#2E241C; --me-hov:#382B20;
+    --navhov:rgba(255,255,255,.045);
+    --h0:#2B2822; --h1:#472A1D; --h2:#8C4326; --h3:#D97757; --h4:#F6A87D;
+    --heathov:rgba(241,237,227,.6);
+    --term:#14110C; --termbar:#1F1A13; --cmdbg:#14110C;
+    --onink:#1B1915; --inkbtn-hov:#FFFFFF;
+    --pill-hov:#2A241C;
+    --veil1:rgba(255,255,255,.07); --veil2:rgba(255,255,255,.02);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 0 0 1px var(--line);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -60,10 +107,10 @@ export function dashboardHtml(code: string | null): string {
             text-transform: uppercase; padding: 16px 8px 8px; display: flex; align-items: center; }
   .navsec .cnt { margin-left: auto; color: var(--faint); }
   .nav { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-         border-radius: 9px; text-decoration: none; font-weight: 500; color: #4A463E;
+         border-radius: 9px; text-decoration: none; font-weight: 500; color: var(--ink2);
          border: 1px solid transparent; }
   .nav svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
-  .nav:hover { background: rgba(255,255,255,.6); }
+  .nav:hover { background: var(--navhov); }
   .nav.on { background: var(--card); border-color: var(--line);
             box-shadow: 0 1px 2px rgba(35,28,15,.06); font-weight: 600; color: var(--ink); }
   .nav.on svg { color: var(--ink); }
@@ -94,11 +141,16 @@ export function dashboardHtml(code: string | null): string {
            display: flex; align-items: center; gap: 10px; min-width: 0; }
   .crumb .codechip { font: 600 11px/1 var(--mono); letter-spacing: .08em; color: var(--muted);
                      border: 1px solid var(--line2); border-radius: 999px; padding: 4px 9px; }
-  .seg { margin-left: auto; display: flex; background: #EEEDE7; border-radius: 10px; padding: 3px; }
+  .seg { margin-left: auto; display: flex; background: var(--seg); border-radius: 10px; padding: 3px; }
   .seg button { border: 0; background: transparent; border-radius: 8px; padding: 6px 14px;
                 font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
   .seg button.on { background: var(--card); color: var(--ink);
                    box-shadow: 0 1px 2px rgba(35,28,15,.08), 0 0 0 1px var(--line); }
+  .tbtn { border: 1px solid var(--line2); background: var(--card); color: var(--muted);
+          border-radius: 9px; width: 32px; height: 32px; display: grid; place-items: center;
+          cursor: pointer; flex: none; padding: 0; }
+  .tbtn:hover { color: var(--ink); border-color: var(--ink); }
+  .tbtn svg { width: 15px; height: 15px; display: block; }
 
   .content { padding: 26px 32px 60px; max-width: 1400px; margin: 0 auto; }
   .grid { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 20px; align-items: start; }
@@ -123,15 +175,15 @@ export function dashboardHtml(code: string | null): string {
           width: 100%; min-width: max-content; --cell: 12px; }
   .ccol { display: flex; flex-direction: column; gap: 4px; width: var(--cell); flex: none; }
   .heat i, .heatfoot i { width: var(--cell); height: var(--cell); border-radius: 24%;
-                         background: #F0EDE6; flex: none; display: block; }
+                         background: var(--h0); flex: none; display: block; }
   .heat i.off { background: transparent; }
-  i.l0 { background: #F0EDE6; }
-  i.l1 { background: #F6DFD2; }
-  i.l2 { background: #EDB795; }
-  i.l3 { background: var(--accent); }
-  i.l4 { background: #8C3D1D; }
+  i.l0 { background: var(--h0); }
+  i.l1 { background: var(--h1); }
+  i.l2 { background: var(--h2); }
+  i.l3 { background: var(--h3); }
+  i.l4 { background: var(--h4); }
   .heat i[data-d] { cursor: crosshair; }
-  .heat i[data-d]:hover { outline: 1.5px solid rgba(34,31,26,.45); outline-offset: -1px; }
+  .heat i[data-d]:hover { outline: 1.5px solid var(--heathov); outline-offset: -1px; }
   /* Entrance: tiles drop into place in a diagonal wave (top-left first),
      each with a delay from its --i order. Only runs while .anim is set —
      poll repaints render fully in place, no replay. */
@@ -175,7 +227,7 @@ export function dashboardHtml(code: string | null): string {
   .tip .tw > span:first-child { margin-left: 0; }
   .tip .tw .ava { width: 22px; height: 22px; font-size: 10px;
                   box-shadow: 0 0 0 2px var(--card); }
-  .tip .twn { margin-left: 8px; font: 600 10.5px/1 var(--mono); color: var(--muted); }
+  .tip .twn { margin-left: 6px; font: 600 10.5px/1 var(--mono); color: var(--muted); }
 
   /* ---- metric strip ---- */
   .mstrip { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line);
@@ -184,12 +236,12 @@ export function dashboardHtml(code: string | null): string {
            border-top: 2px solid transparent; margin-top: -1px; background: none; text-align: left; border-bottom:0; border-right:0; }
   .mcell:first-child { border-left: 0; border-bottom-left-radius: 14px; }
   .mcell:last-child { border-bottom-right-radius: 14px; }
-  .mcell.on { border-top-color: var(--ink); background: #FBFAF7; }
-  .mlab { display: flex; align-items: center; gap: 8px; color: #55514A; font-size: 12.5px;
+  .mcell.on { border-top-color: var(--ink); background: var(--hover); }
+  .mlab { display: flex; align-items: center; gap: 8px; color: var(--ink3); font-size: 12.5px;
           font-weight: 550; margin-bottom: 10px; }
   .mico { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
-          background: #F1F0EA; color: #55514A; flex: none; }
-  .mcell.on .mico { background: var(--ink); color: #fff; }
+          background: var(--chipbg); color: var(--ink3); flex: none; }
+  .mcell.on .mico { background: var(--ink); color: var(--onink); }
   .mico svg { width: 12px; height: 12px; }
   .mnum { display: block; font: 700 24px/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
   .mdelta { display: block; margin-top: 8px; font: 11px/1 var(--mono); color: var(--muted); }
@@ -202,7 +254,7 @@ export function dashboardHtml(code: string | null): string {
           border-top: 1px solid var(--line); animation: rise .45s cubic-bezier(.22,1,.36,1) both;
           animation-delay: calc(var(--i) * 40ms); }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .lrow:hover { background: #FBFAF7; }
+  .lrow:hover { background: var(--hover); }
   .lrow:last-child { border-radius: 0 0 14px 14px; }
   .rk { font: 600 12px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
   .rk.r1 { color: var(--accent); font-weight: 700; }
@@ -215,25 +267,25 @@ export function dashboardHtml(code: string | null): string {
      with a slow orange glint sweeping through (staggered per row). */
   .meta { font: 700 12.5px/1 var(--mono); margin-top: 5px; font-variant-numeric: tabular-nums;
           width: max-content;
-          background: linear-gradient(110deg, #4A463E 0 40%, var(--accent) 50%, #4A463E 60% 100%);
+          background: linear-gradient(110deg, var(--ink2) 0 40%, var(--accent) 50%, var(--ink2) 60% 100%);
           background-size: 230% 100%; -webkit-background-clip: text; background-clip: text;
           color: transparent; animation: glint 3.6s ease-in-out infinite;
           animation-delay: calc(var(--i, 0) * .3s); }
   @keyframes glint { 0% { background-position: 115% 0; } 100% { background-position: -115% 0; } }
-  @media (prefers-reduced-motion: reduce) { .meta { color: #4A463E; background: none; } }
+  @media (prefers-reduced-motion: reduce) { .meta { color: var(--ink2); background: none; } }
   .chip { font: 10px/1 var(--mono); color: var(--muted); border: 1px solid var(--line2);
           border-radius: 999px; padding: 3px 7px; text-decoration: none; white-space: nowrap; }
   .streak { font: 700 10.5px/1 var(--mono); color: var(--accent-deep);
             background: var(--accent-soft); border-radius: 999px; padding: 3px 7px; white-space: nowrap; }
   /* viewer's own row (?me= / localStorage) — subtle, matches the accent system */
-  .lrow.me { background: #FBF4EE; box-shadow: inset 3px 0 0 var(--accent); }
-  .lrow.me:hover { background: #F8EDE4; }
+  .lrow.me { background: var(--me); }
+  .lrow.me:hover { background: var(--me-hov); }
   .youbadge { font: 700 9.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
               color: #fff; background: var(--accent); border-radius: 999px; padding: 3px 7px; }
   .delta { font: 700 10.5px/1 var(--mono); }
   .delta.up { color: var(--up); } .delta.down { color: var(--down); }
   .meter { position: relative; width: 108px; height: 10px; overflow: hidden;
-           background: repeating-linear-gradient(90deg, #EDEBE4 0 4px, transparent 4px 7px); }
+           background: repeating-linear-gradient(90deg, var(--track) 0 4px, transparent 4px 7px); }
   .meter i { position: absolute; inset: 0 auto 0 0;
              background: repeating-linear-gradient(90deg, var(--accent) 0 4px, transparent 4px 7px);
              transition: width .6s cubic-bezier(.22,1,.36,1); }
@@ -249,8 +301,8 @@ export function dashboardHtml(code: string | null): string {
   .btn { display: block; width: 100%; border: 0; border-radius: 10px; padding: 11px 14px;
          font-size: 13px; font-weight: 600; cursor: pointer; text-align: center;
          text-decoration: none; }
-  .btn.dark { background: var(--ink); color: #fff; }
-  .btn.dark:hover { background: #000; }
+  .btn.dark { background: var(--ink); color: var(--onink); }
+  .btn.dark:hover { background: var(--inkbtn-hov); }
   .btn.ghost { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line2); }
   .btn.ghost:hover { box-shadow: inset 0 0 0 1px var(--ink); }
   .btn + .btn { margin-top: 8px; }
@@ -267,7 +319,7 @@ export function dashboardHtml(code: string | null): string {
   .fields input::placeholder { color: var(--faint); }
   .fields input:focus { outline: none; border-color: var(--ink); }
   .fields input.up { text-transform: uppercase; letter-spacing: .08em; }
-  .cmd { margin-top: 4px; background: #23201A; color: #F4EFE5; border-radius: 10px;
+  .cmd { margin-top: 4px; background: var(--cmdbg); color: var(--termink); border-radius: 10px;
          padding: 12px 14px; font: 11.5px/1.65 var(--mono); word-break: break-all; cursor: pointer; }
   .cmd::before { content: "$ "; color: var(--accent); }
   .cmd .copyhint { display: block; color: rgba(244,239,229,.5); margin-top: 6px; font-size: 10px; }
@@ -280,9 +332,9 @@ export function dashboardHtml(code: string | null): string {
      first data paint). A warm cream highlight sweeps left-to-right; the global
      reduced-motion switch below freezes it to flat blocks. */
   .sk { position: relative; overflow: hidden; display: inline-block; vertical-align: top;
-        background: #EFEDE6; border-radius: 6px; }
+        background: var(--skbg); border-radius: 6px; }
   .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
-        background: linear-gradient(100deg, transparent 25%, rgba(255,252,245,.7) 50%, transparent 75%);
+        background: linear-gradient(100deg, transparent 25%, var(--skhi) 50%, transparent 75%);
         animation: sksweep 1.8s ease-in-out infinite; }
   @keyframes sksweep { to { transform: translateX(100%); } }
   .skblk { display: block; }
@@ -296,22 +348,22 @@ export function dashboardHtml(code: string | null): string {
              transition: filter .55s cubic-bezier(.22,1,.36,1), opacity .55s; }
   .codebox.open .codeval { filter: none; opacity: 1; color: var(--ink); }
   .veil { position: absolute; inset: 0; display: grid; place-items: center;
-          background: linear-gradient(115deg, rgba(255,255,255,.28), rgba(255,255,255,.08));
+          background: linear-gradient(115deg, var(--veil1), var(--veil2));
           backdrop-filter: blur(2px) saturate(1.1);
           -webkit-backdrop-filter: blur(2px) saturate(1.1);
           transition: opacity .45s cubic-bezier(.22,1,.36,1), transform .45s cubic-bezier(.22,1,.36,1); }
   .codebox.open .veil { opacity: 0; transform: scale(1.12); pointer-events: none; }
-  .reveal { border: 0; background: var(--ink); color: #fff; border-radius: 999px;
+  .reveal { border: 0; background: var(--ink); color: var(--onink); border-radius: 999px;
             padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
             box-shadow: 0 4px 14px rgba(35,28,15,.22); }
-  .reveal:hover { background: #000; }
+  .reveal:hover { background: var(--inkbtn-hov); }
   .codebox .c { font: 700 24px/1 var(--mono); letter-spacing: .22em; text-indent: .22em; }
   .codebox .h { font: 10px/1 var(--mono); color: var(--muted); margin-top: 8px;
                 letter-spacing: .08em; text-transform: uppercase; }
   .scorehow { display: flex; align-items: center; gap: 10px; padding: 9px 0;
-              border-top: 1px solid var(--line); font-size: 12.5px; color: #55514A; }
+              border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink3); }
   .scorehow:first-of-type { border-top: 0; }
-  .scorehow kbd { font: 10.5px/1 var(--mono); background: #F1F0EA; border-radius: 6px;
+  .scorehow kbd { font: 10.5px/1 var(--mono); background: var(--chipbg); border-radius: 6px;
                   padding: 4px 7px; color: var(--muted); }
   .scorehow .pt { margin-left: auto; font: 700 11px/1 var(--mono); color: var(--accent-deep);
                   background: var(--accent-soft); border-radius: 999px; padding: 4px 8px; }
@@ -346,16 +398,16 @@ export function dashboardHtml(code: string | null): string {
   }
   /* The pitch is a tiny Claude Code session replaying the whole onboarding
      on loop: launch, paste, you're on the board. */
-  .term { margin: 8px 0 14px; background: #1E1913; border-radius: 11px; overflow: hidden;
+  .term { margin: 8px 0 14px; background: var(--term); border-radius: 11px; overflow: hidden;
           box-shadow: 0 12px 26px rgba(35,28,15,.30); }
   .term-bar { display: flex; align-items: center; gap: 6px; padding: 9px 12px;
-              background: #2A241C; border-bottom: 1px solid rgba(255,255,255,.06); }
+              background: var(--termbar); border-bottom: 1px solid rgba(255,255,255,.06); }
   .term-bar i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
   .term-bar i.r { background: #FF5F57; } .term-bar i.y { background: #FEBC2E; }
   .term-bar i.g { background: #28C840; }
   .term-bar span { margin-left: 6px; font: 600 10px/1 var(--mono); letter-spacing: .08em;
                    color: rgba(244,239,229,.55); }
-  .term-body { padding: 11px 14px 13px; font: 12px/1.9 var(--mono); color: #F4EFE5; }
+  .term-body { padding: 11px 14px 13px; font: 12px/1.9 var(--mono); color: var(--termink); }
   .tl { display: block; white-space: nowrap; }
   .tl .ps { color: var(--accent); }
   .t1, .t2 { display: inline-block; overflow: hidden; white-space: nowrap;
@@ -425,12 +477,12 @@ export function dashboardHtml(code: string | null): string {
                text-shadow: 0 1px 10px rgba(253,251,245,.85), 0 0 3px rgba(253,251,245,.7); }
   .hero-head h1 { margin: 0; font-size: clamp(24px, 3.4vw, 33px); font-weight: 750;
                   letter-spacing: -.02em; }
-  .hero-head p { margin: 8px 0 0; color: #55514A; font-size: 13.5px; }
+  .hero-head p { margin: 8px 0 0; color: var(--ink3); font-size: 13.5px; }
 
   .heroterm { position: relative; width: min(620px, 100%); margin: 0 auto;
-              background: #1E1913; border-radius: 14px; overflow: hidden; text-align: left;
+              background: var(--term); border-radius: 14px; overflow: hidden; text-align: left;
               box-shadow: 0 24px 60px rgba(35,28,15,.34), 0 2px 8px rgba(35,28,15,.18); }
-  .ht-body { padding: 11px 18px 12px; font: 12.5px/1.85 var(--mono); color: #F4EFE5; }
+  .ht-body { padding: 11px 18px 12px; font: 12.5px/1.85 var(--mono); color: var(--termink); }
   .hl { display: block; white-space: nowrap; overflow: hidden; }
   .htype { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom;
            animation: htype 1.05s steps(33, end) .35s both; }
@@ -454,12 +506,12 @@ export function dashboardHtml(code: string | null): string {
 
   .hero-pills { position: relative; display: flex; flex-wrap: wrap; gap: 10px;
                 justify-content: center; margin-top: 16px; }
-  .hpill { display: inline-flex; align-items: center; gap: 8px; background: #1E1913;
-           color: #F4EFE5; border: 0; border-radius: 10px; padding: 10px 16px;
+  .hpill { display: inline-flex; align-items: center; gap: 8px; background: var(--term);
+           color: var(--termink); border: 0; border-radius: 10px; padding: 10px 16px;
            font-size: 12.5px; font-weight: 600; cursor: pointer;
            box-shadow: 0 8px 20px rgba(35,28,15,.22);
            transition: transform .15s ease-out, background .15s; }
-  .hpill:hover { transform: translateY(-1px); background: #000; }
+  .hpill:hover { transform: translateY(-1px); background: var(--pill-hov); }
   .hpill svg { width: 13px; height: 13px; color: var(--accent); flex: none; }
   @media (prefers-reduced-motion: reduce) {
     .htype { width: 33ch; } .hfade, .hrank { opacity: 1; transform: none; }
@@ -471,10 +523,36 @@ export function dashboardHtml(code: string | null): string {
   .racetop { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; font-weight: 600; }
   .racetop .pc { margin-left: auto; font: 700 12px/1 var(--mono); }
   .racebar { margin-top: 7px; height: 10px; overflow: hidden; position: relative;
-             background: repeating-linear-gradient(90deg, #EDEBE4 0 4px, transparent 4px 7px); }
+             background: repeating-linear-gradient(90deg, var(--track) 0 4px, transparent 4px 7px); }
   .racebar i { position: absolute; inset: 0 auto 0 0;
                transition: width .6s cubic-bezier(.22,1,.36,1); }
   .race .none { color: var(--muted); font-size: 12.5px; padding: 8px 0 6px; }
+
+  /* ---- dark-mode surface overrides ----
+     The hero wash deepens into night water — same coral marble, ember veins —
+     and floating dark blocks (terminals, pills, tooltips) get a faint light
+     ring so they don't melt into the dark cards behind them. */
+  [data-theme="dark"] .hero { background: #5F2B12; }
+  [data-theme="dark"] #liqg stop:nth-of-type(1) { stop-color: #9C4E2B; }
+  [data-theme="dark"] #liqg stop:nth-of-type(2) { stop-color: #7A3A1F; }
+  [data-theme="dark"] #liqg stop:nth-of-type(3) { stop-color: #582810; }
+  [data-theme="dark"] .lq1 { fill: #E08B5C; opacity: .5; }
+  [data-theme="dark"] .lq2 { fill: #D57B4E; opacity: .45; }
+  [data-theme="dark"] .lq3 { fill: #3C1B0C; opacity: .85; }
+  [data-theme="dark"] .lq4 { fill: #2A150A; opacity: .6; }
+  [data-theme="dark"] .lq5 { fill: #F2A878; opacity: .4; }
+  [data-theme="dark"] .lq6 { fill: #B65F35; opacity: .6; }
+  [data-theme="dark"] .hero-head { text-shadow: 0 1px 12px rgba(26,15,7,.9), 0 0 3px rgba(26,15,7,.75); }
+  [data-theme="dark"] .hero-head p { color: #F3E4D2; }
+  [data-theme="dark"] .term, [data-theme="dark"] .cmd, [data-theme="dark"] .hpill {
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 12px 26px rgba(0,0,0,.5); }
+  [data-theme="dark"] .heroterm {
+    box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 24px 60px rgba(0,0,0,.55); }
+  [data-theme="dark"] .tip { box-shadow: 0 6px 20px rgba(0,0,0,.5), 0 0 0 1px var(--line2); }
+  [data-theme="dark"] .nav.on { box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  [data-theme="dark"] .seg button.on { box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--line2); }
+  [data-theme="dark"] .reveal { box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+  [data-theme="dark"] .btn.glow { box-shadow: 0 6px 18px rgba(217,119,87,.22); }
 
   .notfound { padding: 40px; }
   .notfound b { font-size: 17px; display: block; margin-bottom: 6px; }
@@ -525,6 +603,7 @@ export function dashboardHtml(code: string | null): string {
         <button id="segAll" class="on" onclick="setMode('allTime')">All-time</button>
         <button id="segToday" onclick="setMode('today')">Today</button>
       </div>
+      <button class="tbtn" id="themeBtn" onclick="toggleTheme()" aria-label="toggle dark mode"></button>
     </div></div>
     <div class="content" id="content"></div>
   </main>
@@ -572,6 +651,39 @@ export function dashboardHtml(code: string | null): string {
     paint(); loadWho();
   });
 
+  // ---- theme ---------------------------------------------------------------
+  // data-theme is set pre-paint by the head script; this is the runtime side:
+  // sun/moon toggle in the topbar, persisted, synced across tabs. A toggle
+  // repaints (lastKey reset) so JS-computed colors (avatar tints) re-derive.
+  const THEME_META = { light: '#F4F3EF', dark: '#161511' };
+  function themeNow(){ return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', THEME_META[t]);
+    themeBtnIcon();
+    lastKey = ''; paint();
+  }
+  function toggleTheme(){
+    const t = themeNow() === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('ccrank_theme', t); } catch { /* still applies this tab */ }
+    applyTheme(t);
+  }
+  function themeBtnIcon(){
+    const b = document.getElementById('themeBtn');
+    if (!b) return;
+    const dk = themeNow() === 'dark';
+    b.innerHTML = dk
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    b.title = dk ? 'switch to light mode' : 'switch to dark mode';
+  }
+  window.addEventListener('storage', function(ev){
+    if (ev.key !== 'ccrank_theme') return;
+    if ((ev.newValue === 'light' || ev.newValue === 'dark') && ev.newValue !== themeNow())
+      applyTheme(ev.newValue);
+  });
+
   function go(e){ e.preventDefault();
     const v = document.getElementById('codeInput').value.trim().toUpperCase();
     if (v) location.href = '/r/' + v;
@@ -587,8 +699,13 @@ export function dashboardHtml(code: string | null): string {
   // avatar_url, else github.com/<login>.png), letter fallback if it 404s.
   function avatar(login, url){
     const h = hue(login.toLowerCase());
+    // Pastel fallback tints per theme: light chips on light, deep muted chips
+    // with lifted text on dark — same hue hash, so identity color is stable.
+    const dk = themeNow() === 'dark';
+    const bg = dk ? 'hsl('+h+',30%,25%)' : 'hsl('+h+',62%,91%)';
+    const fg = dk ? 'hsl('+h+',55%,78%)' : 'hsl('+h+',48%,32%)';
     const src = url || ('https://github.com/'+encodeURIComponent(login)+'.png?size=64');
-    return '<span class="ava" style="background:hsl('+h+',62%,91%);color:hsl('+h+',48%,32%)">'+
+    return '<span class="ava" style="background:'+bg+';color:'+fg+'">'+
       esc(login.charAt(0).toUpperCase())+
       '<img src="'+esc(src)+'" alt="" loading="lazy" onerror="this.remove()">'+
       '</span>';
@@ -774,7 +891,7 @@ export function dashboardHtml(code: string | null): string {
         who = '<div class="tw">'+v.w.map(function(u){
           return '<span title="'+esc(u.login)+' \\u00B7 '+fmt(u.n)+' pts">'+avatar(u.login, u.avatar)+'</span>';
         }).join('')+
-        '<span class="twn">'+esc(v.w[0].login)+(v.w.length > 1 || v.wm ? ' +'+(v.w.length-1+v.wm) : '')+'</span></div>';
+        (v.wm > 0 ? '<span class="twn">+'+v.wm+'</span>' : '')+'</div>';
       }
       tip.innerHTML = '<div class="d">'+nice+'</div><div class="v">'+fmt(p+e)+
         ' <small>pts &middot; '+fmt(p)+' prompts &middot; '+fmt(e)+' edits</small></div>'+who;
@@ -783,8 +900,20 @@ export function dashboardHtml(code: string | null): string {
       tip.style.display = 'block';
       const cr = chart.getBoundingClientRect(), r = cell.getBoundingClientRect();
       const x = r.left - cr.left + r.width/2;
-      tip.style.left = Math.max(95, Math.min(x, cr.width - 95)) + 'px';
-      tip.style.top = '0px'; tip.style.transform = 'translate(-50%,0)';
+      // Clamp by the tip's REAL half-width (it varies with the avatar row),
+      // not a guess — otherwise the right edge clips it.
+      const half = tip.offsetWidth / 2 + 6;
+      tip.style.left = Math.max(half, Math.min(x, cr.width - half)) + 'px';
+      // Hug the hovered cell: below it in the top half of the grid, above it
+      // in the bottom half (the container clips anything past its edges).
+      const cy = r.top - cr.top + 22; // wrapper has 22px padding-top
+      if (r.top - cr.top < cr.height / 2){
+        tip.style.top = (cy + r.height + 7) + 'px';
+        tip.style.transform = 'translate(-50%,0)';
+      } else {
+        tip.style.top = (cy - 7) + 'px';
+        tip.style.transform = 'translate(-50%,-100%)';
+      }
     });
     chart.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
   }
@@ -1285,6 +1414,7 @@ export function dashboardHtml(code: string | null): string {
     rt = setTimeout(function(){ lastKey = ''; paint(); }, 180);
   });
 
+  themeBtnIcon();                            // sun/moon reflects the pre-paint theme
   loadWho();                                 // viewer identity greeting (if any)
   loadGlobal();                              // sidebar + landing need it everywhere
   if (CODE){ loadRoom(); setInterval(loadRoom, 5000); setInterval(loadGlobal, 30000); }
