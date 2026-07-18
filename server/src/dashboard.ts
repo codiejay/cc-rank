@@ -1185,7 +1185,12 @@ export function dashboardHtml(code: string | null): string {
   }
   function paint(){
     const data = CODE ? ROOM : GLOBAL;
-    const key = JSON.stringify([CODE, mode, metric, NOTFOUND, ME, ME_WHO, data]);
+    // GLOBAL.roomsList must be part of the key: on room pages the sidebar is
+    // fed by GLOBAL while the main content is ROOM — if the room fetch wins
+    // the race, the later GLOBAL arrival must still trigger a repaint or the
+    // sidebar stays skeleton forever.
+    const key = JSON.stringify([CODE, mode, metric, NOTFOUND, ME, ME_WHO, data,
+      GLOBAL && GLOBAL.roomsList]);
     if (key === lastKey) return; // nothing changed — don't repaint the poll
     lastKey = key;
     measure(); // fluid chart + meter sizing from the current viewport
