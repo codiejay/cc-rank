@@ -23,6 +23,25 @@ function utcDay(ts: number): string {
 }
 const json = (c: any, data: unknown, status = 200) => c.json(data, status);
 
+// ---- rate limiting --------------------------------------------------------
+// Per-isolate in-memory token bucket. Not perfect (each Worker isolate keeps
+// its own counters), but it turns "try 890M room codes" from cheap into
+// impractical, with zero added latency. Keyed by client IP + route class.
+const rlHits = new Map<string, { n: number; t: number }>();
+function rateLimited(c: any, key: string, max: number, windowMs = 60000): boolean {
+  const ip = c.req.header("cf-connecting-ip") || "?";
+  const k = ip + ":" + key;
+  const now = Date.now();
+  if (rlHits.size > 10000) {
+    for (const [kk, v] of rlHits) if (now - v.t > windowMs) rlHits.delete(kk);
+  }
+  const h = rlHits.get(k);
+  if (!h || now - h.t > windowMs) { rlHits.set(k, { n: 1, t: now }); return false; }
+  h.n++;
+  return h.n > max;
+}
+const tooMany = (c: any) => json(c, { error: "rate_limited" }, 429);
+
 type User = { id: number; login: string };
 
 async function userByToken(db: D1Database, token: string): Promise<User | null> {
@@ -39,6 +58,7 @@ async function userByToken(db: D1Database, token: string): Promise<User | null> 
 // immutable numeric id (rename-proof); login/avatar are display and refresh
 // on every sign-in. The GitHub token is used once and never stored.
 app.post("/api/login", async (c) => {
+  if (rateLimited(c, "login", 10)) return tooMany(c);
   const body = await c.req.json().catch(() => ({}));
   const ghToken = String(body?.ghToken ?? "").trim();
   if (!ghToken) return json(c, { error: "gh_token_required" }, 400);
@@ -130,6 +150,8 @@ app.post("/api/rooms", async (c) => {
 // Join a room = add a membership. Identity comes from the token; a room is
 // just a grouping, so joining never touches counts.
 app.post("/api/rooms/:code/join", async (c) => {
+  // The brute-force target: joining/checking codes. Tight budget.
+  if (rateLimited(c, "roomcode", 20)) return tooMany(c);
   const code = c.req.param("code").toUpperCase();
   const body = await c.req.json().catch(() => ({}));
   const user = await userByToken(c.env.DB, String(body?.token ?? ""));
@@ -147,6 +169,7 @@ app.post("/api/rooms/:code/join", async (c) => {
 
 // Pre-flight for JOIN: does the room exist?
 app.get("/api/rooms/:code/check", async (c) => {
+  if (rateLimited(c, "roomcode", 20)) return tooMany(c);
   const code = c.req.param("code").toUpperCase();
   const room = await c.env.DB.prepare("SELECT code, name FROM rooms WHERE code = ?")
     .bind(code).first<{ code: string; name: string }>();
@@ -343,6 +366,9 @@ async function boardPayload(db: D1Database, code: string | null) {
 
 // Standings for a room = its MEMBERS ranked by their global score.
 app.get("/api/rooms/:code", async (c) => {
+  // Looser than join/check: the room page legitimately polls this every 5s
+  // (12/min/tab) — 90/min allows several tabs while still killing brute force.
+  if (rateLimited(c, "roomview", 90)) return tooMany(c);
   const code = c.req.param("code").toUpperCase();
   const room = await c.env.DB.prepare("SELECT code, name, owner FROM rooms WHERE code = ?")
     .bind(code).first<{ code: string; name: string; owner: string | null }>();

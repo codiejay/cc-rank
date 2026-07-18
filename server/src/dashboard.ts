@@ -939,18 +939,38 @@ export function dashboardHtml(code: string | null): string {
   }
 
   // ---- sidebar + topbar ----------------------------------------------------
+  // Rooms this browser has PROVEN it can reach (visited /r/CODE at least
+  // once). Codes are join credentials — they only ever come from the user
+  // having typed/followed one, never from an API keyed on public identity.
+  function knownRooms(){
+    try { return JSON.parse(localStorage.getItem('ccrank_rooms') || '{}'); }
+    catch { return {}; }
+  }
+  function rememberRoom(code, name){
+    try {
+      const m = knownRooms();
+      if (m[name] === code) return;
+      m[name] = code;
+      localStorage.setItem('ccrank_rooms', JSON.stringify(m));
+      renderSide(); // sidebar links light up immediately
+    } catch { /* storage unavailable — sidebar stays static */ }
+  }
   function renderSide(){
-    // Directory shows room NAMES only. The one room we may link to is the one
-    // being viewed — reaching it required knowing its code already.
+    // Directory shows room NAMES only. Entries become links only for rooms
+    // this browser already knows the code to (currently viewed, or visited
+    // before and remembered locally).
     const rooms = (GLOBAL && GLOBAL.roomsList) || [];
     document.getElementById('roomCnt').textContent = rooms.length || '';
     const current = (CODE && ROOM && ROOM.room) ? ROOM.room.name : null;
+    const known = knownRooms();
     document.getElementById('navRooms').innerHTML = rooms.map(function(r){
       const h = hue(String(r.name).toLowerCase());
       const dot = '<span class="rdot" style="background:hsl('+h+',55%,62%)"></span>';
       if (current && r.name === current)
         return '<a class="nav on" href="/r/'+encodeURIComponent(CODE)+'">'+dot+esc(r.name)+
           '<span class="code">'+esc(CODE)+'</span></a>';
+      if (known[r.name])
+        return '<a class="nav" href="/r/'+encodeURIComponent(known[r.name])+'">'+dot+esc(r.name)+'</a>';
       return '<div class="nav static" title="joining needs a code from a member">'+dot+esc(r.name)+'</div>';
     }).join('');
     document.getElementById('navHome').className = 'nav' + (CODE ? '' : ' on');
@@ -1117,6 +1137,7 @@ export function dashboardHtml(code: string | null): string {
       if (!res.ok){ NOTFOUND = true; paint(); return; }
       NOTFOUND = false;
       ROOM = await res.json();
+      if (ROOM && ROOM.room) rememberRoom(CODE, ROOM.room.name);
       paint();
     } catch { /* keep last render */ }
   }
