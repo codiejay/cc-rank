@@ -130,15 +130,15 @@ export function dashboardHtml(code: string | null): string {
      each with a delay from its --i order. Only runs while .anim is set —
      poll repaints render fully in place, no replay. */
   @keyframes heatIn {
-    from { opacity: 0; transform: scale(.18) translateY(-3px); }
-    60%  { opacity: 1; }
+    from { opacity: 0; transform: scale(0) translateY(-6px); }
+    55%  { opacity: 1; }
     to   { opacity: 1; transform: scale(1) translateY(0); }
   }
   .heat.anim i { opacity: 0; }
   .heat.anim i:not(.off) {
     transform-origin: center;
-    animation: heatIn .42s cubic-bezier(.34,1.32,.5,1) both;
-    animation-delay: calc(var(--i,0) * 11ms);
+    animation: heatIn .68s cubic-bezier(.34,1.46,.44,1) both;
+    animation-delay: calc(var(--i,0) * 26ms);
   }
   @media (prefers-reduced-motion: reduce) {
     .heat.anim i { opacity: 1; }
