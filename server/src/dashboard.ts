@@ -193,6 +193,11 @@ export function dashboardHtml(code: string | null): string {
           border-radius: 999px; padding: 3px 7px; text-decoration: none; white-space: nowrap; }
   .streak { font: 700 10.5px/1 var(--mono); color: var(--accent-deep);
             background: var(--accent-soft); border-radius: 999px; padding: 3px 7px; white-space: nowrap; }
+  /* viewer's own row (?me= / localStorage) — subtle, matches the accent system */
+  .lrow.me { background: #FBF4EE; box-shadow: inset 3px 0 0 var(--accent); }
+  .lrow.me:hover { background: #F8EDE4; }
+  .youbadge { font: 700 9.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+              color: #fff; background: var(--accent); border-radius: 999px; padding: 3px 7px; }
   .delta { font: 700 10.5px/1 var(--mono); }
   .delta.up { color: var(--up); } .delta.down { color: var(--down); }
   .meter { position: relative; width: 108px; height: 10px; overflow: hidden;
@@ -331,44 +336,47 @@ export function dashboardHtml(code: string | null): string {
   @keyframes btnshine { 0%,55% { transform: translateX(-130%); } 90%,100% { transform: translateX(130%); } }
 
   /* ---- landing hero: liquid panel + live fake terminal --------------------
-     James-sanctioned exception to the no-gradient rule: the landing hero sits
-     on a slowly drifting "liquid" wash (blurred warm blobs + a rotating streak
-     layer). The terminal on top replays a fake ccrank session that prints the
-     REAL live global top 5. */
+     James-sanctioned exception to the no-gradient rule: a coral "water" wash —
+     an SVG turbulence/displacement marble. Cream veins and deep-coral pools
+     drift (CSS transforms) through a fixed noise field, so the displacement
+     warps them like liquid as they move. All motion is CSS-driven: the global
+     reduced-motion rule freezes it. The terminal on top replays a fake ccrank
+     session that prints the REAL live global top 5. */
   .hero { position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 20px;
-          padding: clamp(30px, 5vw, 56px) 20px clamp(24px, 4vw, 40px);
-          background: #EDEAE2; box-shadow: var(--shadow); }
-  .liq { position: absolute; inset: -30%; filter: blur(30px) saturate(1.12);
-         pointer-events: none; }
-  .liq i { position: absolute; border-radius: 42% 58% 55% 45% / 55% 44% 56% 45%; }
-  .liq .b1 { width: 58%; height: 62%; left: -8%; top: -12%; background: #FDFBF5;
-             animation: drift1 34s ease-in-out -8s infinite alternate; }
-  .liq .b2 { width: 48%; height: 54%; right: -6%; top: 2%; background: rgba(224,122,82,.9);
-             animation: drift2 41s ease-in-out -20s infinite alternate; }
-  .liq .b3 { width: 42%; height: 48%; left: 14%; bottom: -14%; background: rgba(158,124,98,.8);
-             animation: drift3 47s ease-in-out -33s infinite alternate; }
-  .liq .b4 { width: 28%; height: 32%; right: 22%; bottom: -6%; background: rgba(196,86,48,.7);
-             animation: drift1 29s ease-in-out -14s infinite alternate-reverse; }
-  .liq .b5 { width: 34%; height: 38%; left: 36%; top: -10%; background: #F8F3E8;
-             animation: drift2 38s ease-in-out -5s infinite alternate-reverse; }
-  .liq .b6 { width: 22%; height: 40%; left: 2%; top: 34%; background: rgba(233,158,120,.75);
-             animation: drift3 36s ease-in-out -11s infinite alternate-reverse; }
-  @keyframes drift1 { to { transform: translate(10%, 15%) scale(1.2) rotate(14deg); } }
-  @keyframes drift2 { to { transform: translate(-13%, 10%) scale(.84) rotate(26deg); } }
-  @keyframes drift3 { to { transform: translate(11%, -13%) scale(1.16) rotate(-22deg); } }
-  /* two counter-rotating streak layers under the blur = slow marbling */
-  .liq::before, .liq::after { content: ""; position: absolute; inset: 0; }
-  .liq::before { background: conic-gradient(from 0deg at 52% 46%,
-                  transparent 0 34deg, rgba(255,255,255,.75) 58deg 86deg, transparent 118deg 196deg,
-                  rgba(217,119,87,.4) 226deg 258deg, transparent 296deg 360deg);
-                animation: liqspin 90s linear infinite; }
-  .liq::after { background: conic-gradient(from 140deg at 42% 58%,
-                  transparent 0 50deg, rgba(250,246,236,.65) 74deg 96deg, transparent 130deg 230deg,
-                  rgba(124,100,85,.3) 258deg 284deg, transparent 320deg 360deg);
-                animation: liqspin 120s linear infinite reverse; }
-  @keyframes liqspin { to { transform: rotate(360deg); } }
+          padding: clamp(18px, 2.6vw, 30px) 20px clamp(16px, 2.2vw, 24px);
+          background: #DC7E5E; box-shadow: var(--shadow); }
+  .liq { position: absolute; inset: -6%; width: 112%; height: 112%;
+         filter: blur(13px) saturate(1.08); pointer-events: none; }
+  .liq * { transform-box: fill-box; transform-origin: center; }
+  /* Closed meandering loops (4 waypoints each, 0% == 100%) instead of
+     alternate ping-pong: each vein wanders an irregular orbit at its own
+     pace, so the flow never looks like a repeat or a reversal. */
+  .lq1 { animation: lqa 13s ease-in-out -5s infinite; }
+  .lq2 { animation: lqb 17s ease-in-out -11s infinite; }
+  .lq3 { animation: lqc 15s ease-in-out -2s infinite; }
+  .lq4 { animation: lqb 11s ease-in-out -7s infinite; }
+  .lq5 { animation: lqa 19s ease-in-out -13s infinite; }
+  .lq6 { animation: lqc 10s ease-in-out -4s infinite; }
+  @keyframes lqa {
+    0%, 100% { transform: none; }
+    25% { transform: translate(180px, -90px) rotate(16deg) scale(1.15); }
+    50% { transform: translate(320px, 60px) rotate(38deg) scale(1.32); }
+    75% { transform: translate(120px, 170px) rotate(10deg) scale(1.08); }
+  }
+  @keyframes lqb {
+    0%, 100% { transform: none; }
+    25% { transform: translate(-160px, 110px) rotate(-18deg) scale(.86); }
+    50% { transform: translate(-300px, -50px) rotate(-40deg) scale(.72); }
+    75% { transform: translate(-90px, -150px) rotate(-8deg) scale(.94); }
+  }
+  @keyframes lqc {
+    0%, 100% { transform: none; }
+    25% { transform: translate(140px, 120px) rotate(14deg) scale(1.22); }
+    50% { transform: translate(250px, -70px) rotate(30deg) scale(1.02); }
+    75% { transform: translate(60px, -180px) rotate(6deg) scale(1.28); }
+  }
 
-  .hero-head { position: relative; text-align: center; margin: 0 auto 26px;
+  .hero-head { position: relative; text-align: center; margin: 0 auto 14px;
                text-shadow: 0 1px 10px rgba(253,251,245,.85), 0 0 3px rgba(253,251,245,.7); }
   .hero-head h1 { margin: 0; font-size: clamp(24px, 3.4vw, 33px); font-weight: 750;
                   letter-spacing: -.02em; }
@@ -377,7 +385,7 @@ export function dashboardHtml(code: string | null): string {
   .heroterm { position: relative; width: min(620px, 100%); margin: 0 auto;
               background: #1E1913; border-radius: 14px; overflow: hidden; text-align: left;
               box-shadow: 0 24px 60px rgba(35,28,15,.34), 0 2px 8px rgba(35,28,15,.18); }
-  .ht-body { padding: 13px 18px 15px; font: 12.5px/2 var(--mono); color: #F4EFE5; }
+  .ht-body { padding: 11px 18px 12px; font: 12.5px/1.85 var(--mono); color: #F4EFE5; }
   .hl { display: block; white-space: nowrap; overflow: hidden; }
   .htype { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom;
            animation: htype .8s steps(10, end) .35s both; }
@@ -402,7 +410,7 @@ export function dashboardHtml(code: string | null): string {
     animation: none; width: auto; opacity: 1; transform: none; }
 
   .hero-pills { position: relative; display: flex; flex-wrap: wrap; gap: 10px;
-                justify-content: center; margin-top: 24px; }
+                justify-content: center; margin-top: 16px; }
   .hpill { display: inline-flex; align-items: center; gap: 8px; background: #1E1913;
            color: #F4EFE5; border: 0; border-radius: 10px; padding: 10px 16px;
            font-size: 12.5px; font-weight: 600; cursor: pointer;
@@ -486,6 +494,32 @@ export function dashboardHtml(code: string | null): string {
   let GLOBAL = null, ROOM = null, NOTFOUND = false;
   let lastKey = "";
 
+  // ---- viewer identity ------------------------------------------------------
+  // ?me=<github_id> identifies the viewer for a cosmetic "you" highlight.
+  // The id is PUBLIC (it's in every board row) — never a token or secret.
+  // Persisted in localStorage so plain visits keep the highlight.
+  let ME = null, ME_WHO = null;
+  try {
+    const q = new URLSearchParams(location.search).get('me');
+    if (q && /^[0-9]{1,20}$/.test(q)) localStorage.setItem('ccrank_me', q);
+    const stored = localStorage.getItem('ccrank_me');
+    if (stored && /^[0-9]{1,20}$/.test(stored)) ME = Number(stored);
+  } catch { /* storage may be unavailable; highlight is optional */ }
+  async function loadWho(){
+    if (!ME || (ME_WHO && ME_WHO.id === ME)) return;
+    try {
+      const r = await fetch('/api/whois?me='+ME);
+      if (r.ok){ ME_WHO = await r.json(); lastKey = ''; paint(); }
+    } catch { /* cosmetic only */ }
+  }
+  // Cross-tab sync: the storage event fires in OTHER tabs when the freshly
+  // logged-in tab writes ccrank_me — those tabs re-render instantly.
+  window.addEventListener('storage', function(ev){
+    if (ev.key !== 'ccrank_me' || !ev.newValue || !/^[0-9]{1,20}$/.test(ev.newValue)) return;
+    ME = Number(ev.newValue); ME_WHO = null; lastKey = '';
+    paint(); loadWho();
+  });
+
   function go(e){ e.preventDefault();
     const v = document.getElementById('codeInput').value.trim().toUpperCase();
     if (v) location.href = '/r/' + v;
@@ -532,9 +566,10 @@ export function dashboardHtml(code: string | null): string {
       '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
       '2. If JOIN: verify the room exists with GET '+S+'/api/rooms/<CODE>/check. If \\"reason\\":\\"room_not_found\\" -> tell me the code looks wrong and stop.\\n'+
       '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login. JOIN: npx github:codiejay/cc-rank join <CODE>. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\" (creating auto-joins me — no separate join needed).\\n'+
-      '4. The command signs me in with GitHub device flow: it prints a one-time code and the URL github.com/login/device — read BOTH from the command output, show them to me clearly, and wait while I authorize in my browser. (If my gh CLI is signed in, the command may offer to skip the browser — either path is fine.)\\n'+
-      '5. When it finishes, show me what it printed: my verified GitHub login, plus the room code + dashboard link if a room was involved (global board link otherwise).\\n'+
-      '6. Tell me to restart Claude Code so my prompts and edits start counting.';
+      '4. The command handles GitHub sign-in ITSELF: it opens github.com/login/device in my browser and copies the one-time code to my clipboard. Your job: within ~10 seconds of starting it, READ ITS OUTPUT and tell me exactly: \\"A GitHub page should have opened — paste the code from your clipboard. If nothing opened, go to github.com/login/device and enter <CODE FROM OUTPUT>.\\" Always show the actual code. The green Authorize button takes a couple seconds to become clickable — tell me that too.\\n'+
+      '5. Keep checking the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
+      '6. When it finishes, show me what it printed: my verified GitHub login, plus the room code + dashboard link if a room was involved (global board link otherwise).\\n'+
+      '7. Tell me to restart Claude Code so my prompts and edits start counting.';
   }
   function copyAgent(code, outId){
     const out = document.getElementById(outId);
@@ -745,11 +780,13 @@ export function dashboardHtml(code: string | null): string {
       if (r.delta != null && r.delta > 0) delta = '<span class="delta up" title="up '+r.delta+' since yesterday">\\u25B2'+r.delta+'</span>';
       else if (r.delta != null && r.delta < 0) delta = '<span class="delta down" title="down '+(-r.delta)+' since yesterday">\\u25BC'+(-r.delta)+'</span>';
       const login = r.login || r.name;
-      return '<div class="lrow" style="--i:'+i+'">'+
+      const isMe = ME != null && r.id === ME;
+      const you = isMe ? '<span class="youbadge">you</span>' : '';
+      return '<div class="lrow'+(isMe?' me':'')+'" style="--i:'+i+'">'+
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+you+chips+streak+delta+'</div>'+
         '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
@@ -778,11 +815,18 @@ export function dashboardHtml(code: string | null): string {
       '</div></div>';
   }
   function onboardCard(){
+    // Known viewer (?me= / localStorage) -> greet them instead of pitching setup.
+    const who = ME_WHO && ME_WHO.login ? ME_WHO : null;
+    const head = who ? 'You&rsquo;re in as @'+esc(who.login) : 'Get on the board';
+    const tag  = who ? 'Signed in' : 'Start here';
+    const hint = who
+      ? 'Your prompts and edits are counting on the global board. Rooms below if you want a private view for your crew.'
+      : 'One prompt in Claude Code sets everything up &mdash; sign in with GitHub (real auth, no typed names) and you&rsquo;re on the global board with every ccrank user.';
     return '<section class="onboard"><div class="onb-in">'+
-      '<div class="onb-head">'+claudeBurst('burst-ico')+'<h3>Get on the board</h3>'+
-      '<span class="onb-tag">Start here</span></div>'+
-      '<div class="pad">'+termDemo()+
-      '<p class="hint">One prompt in Claude Code sets everything up &mdash; sign in with GitHub (real auth, no typed names) and you&rsquo;re on the global board with every ccrank user.</p>'+
+      '<div class="onb-head">'+claudeBurst('burst-ico')+'<h3>'+head+'</h3>'+
+      '<span class="onb-tag">'+tag+'</span></div>'+
+      '<div class="pad">'+(who ? '' : termDemo())+
+      '<p class="hint">'+hint+'</p>'+
       '<button class="btn dark glow" onclick="copyAgent(null, \\'aOut\\')">Copy the agent prompt</button>'+
       '<div id="aOut" style="margin-bottom:10px"></div>'+
       '<details><summary>Join a room by hand</summary><div class="fields">'+
@@ -921,8 +965,25 @@ export function dashboardHtml(code: string | null): string {
       's"><span class="ps">$</span> <span class="caret"></span></span>';
     const html =
       '<section class="hero">'+
-        '<div class="liq" aria-hidden="true"><i class="b1"></i><i class="b2"></i>'+
-          '<i class="b3"></i><i class="b4"></i><i class="b5"></i><i class="b6"></i></div>'+
+        '<svg class="liq" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
+          '<defs>'+
+            '<filter id="liqf" x="-25%" y="-25%" width="150%" height="150%">'+
+              '<feTurbulence type="fractalNoise" baseFrequency="0.004 0.002" numOctaves="2" seed="8" result="n"/>'+
+              '<feDisplacementMap in="SourceGraphic" in2="n" scale="300" xChannelSelector="R" yChannelSelector="G"/>'+
+            '</filter>'+
+            '<linearGradient id="liqg" x1="0" y1="0" x2="1" y2="1">'+
+              '<stop offset="0" stop-color="#E89A72"/><stop offset=".5" stop-color="#D97757"/>'+
+              '<stop offset="1" stop-color="#C05F33"/></linearGradient>'+
+          '</defs>'+
+          '<g filter="url(#liqf)">'+
+            '<rect x="-300" y="-300" width="1800" height="1200" fill="url(#liqg)"/>'+
+            '<ellipse class="lq1" cx="230" cy="140" rx="400" ry="240" fill="#FBF6EB" opacity=".95"/>'+
+            '<ellipse class="lq2" cx="960" cy="480" rx="340" ry="210" fill="#F9F2E4" opacity=".9"/>'+
+            '<ellipse class="lq3" cx="1060" cy="110" rx="310" ry="200" fill="#A94E28" opacity=".85"/>'+
+            '<ellipse class="lq4" cx="520" cy="560" rx="280" ry="170" fill="#8F5B41" opacity=".55"/>'+
+            '<ellipse class="lq5" cx="660" cy="240" rx="460" ry="95" fill="#FFF9EC" opacity=".75"/>'+
+            '<ellipse class="lq6" cx="330" cy="430" rx="240" ry="80" fill="#EFB08C" opacity=".8"/>'+
+          '</g></svg>'+
         '<div class="hero-head"><h1>Every prompt counts.</h1>'+
           '<p>One global board for every Claude Code user \\u2014 prompts and edits, ranked live. Rooms if you want your own crew.</p></div>'+
         '<div class="heroterm'+(heroPlayed ? ' noanim' : '')+'" role="img" '+
@@ -972,7 +1033,7 @@ export function dashboardHtml(code: string | null): string {
   }
   function paint(){
     const data = CODE ? ROOM : GLOBAL;
-    const key = JSON.stringify([CODE, mode, metric, NOTFOUND, data]);
+    const key = JSON.stringify([CODE, mode, metric, NOTFOUND, ME, ME_WHO, data]);
     if (key === lastKey) return; // nothing changed — don't repaint the poll
     lastKey = key;
     measure(); // fluid chart + meter sizing from the current viewport
@@ -1049,6 +1110,7 @@ export function dashboardHtml(code: string | null): string {
     rt = setTimeout(function(){ lastKey = ''; paint(); }, 180);
   });
 
+  loadWho();                                 // viewer identity greeting (if any)
   loadGlobal();                              // sidebar + landing need it everywhere
   if (CODE){ loadRoom(); setInterval(loadRoom, 5000); setInterval(loadGlobal, 30000); }
   else setInterval(loadGlobal, 8000);

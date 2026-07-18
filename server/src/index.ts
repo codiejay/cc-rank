@@ -71,12 +71,24 @@ app.post("/api/login", async (c) => {
     await c.env.DB.prepare(
       "UPDATE users SET token = ?, login = ?, avatar = ? WHERE github_id = ?"
     ).bind(token, gh.login, gh.avatar_url, gh.id).run();
-    return json(c, { token, login: gh.login, avatar: gh.avatar_url, reclaimed: true });
+    return json(c, { token, githubId: gh.id, login: gh.login, avatar: gh.avatar_url, reclaimed: true });
   }
   await c.env.DB.prepare(
     "INSERT INTO users (github_id, login, avatar, token, created_at) VALUES (?, ?, ?, ?, ?)"
   ).bind(gh.id, gh.login, gh.avatar_url, token, Date.now()).run();
-  return json(c, { token, login: gh.login, avatar: gh.avatar_url, reclaimed: false });
+  return json(c, { token, githubId: gh.id, login: gh.login, avatar: gh.avatar_url, reclaimed: false });
+});
+
+// Public display fields for a github_id — lets the dashboard greet the viewer
+// identified by the (public, cosmetic) ?me= param. No token, no secrets.
+app.get("/api/whois", async (c) => {
+  const id = Number(c.req.query("me"));
+  if (!Number.isInteger(id) || id <= 0) return json(c, { error: "bad_id" }, 400);
+  const u = await c.env.DB.prepare(
+    "SELECT github_id AS id, login, avatar FROM users WHERE github_id = ?"
+  ).bind(id).first();
+  if (!u) return json(c, { error: "unknown" }, 404);
+  return json(c, u);
 });
 
 // ---- rooms ---------------------------------------------------------------

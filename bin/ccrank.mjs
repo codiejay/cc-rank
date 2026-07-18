@@ -10,7 +10,7 @@
 // with api.github.com before minting a session. No username squatting possible.
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,6 +55,28 @@ async function api(path, method = "GET", body) {
 function loadConfig() { try { return JSON.parse(readFileSync(CFG, "utf8")); } catch { return null; } }
 function saveConfig(cfg) { mkdirSync(CC_DIR, { recursive: true }); writeFileSync(CFG, JSON.stringify(cfg, null, 2)); }
 
+// Personalized board URL: ?me=<github_id> lets the dashboard highlight the
+// viewer's own row. The id is PUBLIC (it's in every leaderboard row) and only
+// drives a cosmetic highlight — never put tokens or secrets in URLs.
+function withMe(url, cfg) {
+  if (!cfg?.githubId) return url;
+  return url + (url.includes("?") ? "&" : "?") + "me=" + cfg.githubId;
+}
+
+// Best-effort "open in browser" — silent on failure (SSH/headless/CI), the
+// printed link always covers those cases.
+function openBrowser(url) {
+  try {
+    const [bin, args] = process.platform === "darwin" ? ["open", [url]]
+      : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
+      : ["xdg-open", [url]];
+    const child = spawn(bin, args, { detached: true, stdio: "ignore" });
+    child.on("error", () => {});
+    child.unref();
+    return true;
+  } catch { return false; }
+}
+
 // ---- GitHub auth ---------------------------------------------------------
 
 // Shortcut: you're signed into the gh CLI — its token identifies you without
@@ -80,7 +102,23 @@ async function askYesNo(question, def = true) {
   } finally { rl.close(); }
 }
 
-// GitHub device flow — "open github.com/login/device, type this code".
+// Copy text to the OS clipboard, best-effort and silent on failure.
+function toClipboard(text) {
+  try {
+    const [bin, args] = process.platform === "darwin" ? ["pbcopy", []]
+      : process.platform === "win32" ? ["clip", []]
+      : ["xclip", ["-selection", "clipboard"]];
+    const child = spawn(bin, args, { stdio: ["pipe", "ignore", "ignore"] });
+    child.on("error", () => {});
+    child.stdin.on("error", () => {});
+    child.stdin.write(text); child.stdin.end();
+    return true;
+  } catch { return false; }
+}
+
+// GitHub device flow. The CLI does ALL the legwork itself — opens the GitHub
+// page in the browser AND puts the code in the clipboard — so the user just
+// pastes and clicks. The printed code is the fallback for SSH/headless.
 // scope read:user: public profile only; can't touch code, repos, or orgs.
 async function deviceFlowToken() {
   const start = await (await fetch("https://github.com/login/device/code", {
@@ -90,9 +128,14 @@ async function deviceFlowToken() {
   })).json();
   if (!start?.device_code) { fail("Could not start GitHub sign-in. Try again."); return null; }
 
-  console.log(`\n  Sign in with GitHub to prove who you are:`);
-  console.log(`    1. Open  ${c.b(start.verification_uri || "https://github.com/login/device")}`);
-  console.log(`    2. Enter ${c.y(start.user_code)}`);
+  const uri = start.verification_uri || "https://github.com/login/device";
+  const copied = toClipboard(start.user_code);
+  const opened = openBrowser(uri);
+  console.log(`\n  Sign in with GitHub to prove who you are.`);
+  if (opened) console.log(`  ${c.g("✓")} GitHub just opened in your browser${copied ? ` — the code is in your clipboard, paste it` : ""}.`);
+  console.log(`\n    Code:  ${c.y(start.user_code)}${copied ? c.dim("  (copied to clipboard)") : ""}`);
+  console.log(`    Page:  ${c.b(uri)}${opened ? c.dim("  (already open)") : ""}`);
+  console.log(c.dim(`\n  Tip: GitHub's green Authorize button wakes up after a second or two.`));
   console.log(c.dim(`  Waiting for you to authorize (Ctrl-C to abort)…`));
 
   let interval = (start.interval || 5) * 1000;
@@ -134,7 +177,8 @@ async function ensureUser({ force = false } = {}) {
   try {
     const res = await api("/api/login", "POST", { ghToken });
     return {
-      server, token: res.token, login: res.login, avatar: res.avatar || null,
+      server, token: res.token, githubId: res.githubId || null,
+      login: res.login, avatar: res.avatar || null,
       reclaimed: !!res.reclaimed,
       roomCode: prev?.roomCode || null, roomName: prev?.roomName || null,
       wrappedStatusLine: prev?.wrappedStatusLine || null,
@@ -218,9 +262,13 @@ async function login() {
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  You're on the global board. Every prompt you send and file edit Claude`);
   console.log(`  makes scores you a point. Only counts leave your machine — ${c.b("never your code")}.`);
-  console.log(`\n  Global board:  ${c.y(cfg.server + "/")}`);
-  if (cfg.roomCode) console.log(`  Your room:     ${c.dim(cfg.server + "/r/" + cfg.roomCode)}`);
-  else console.log(`  Want a private room for your crew? ${c.dim("ccrank create --name \"Room\"  ·  ccrank join <CODE>")}`);
+  // Send them straight to their board — room if they have one, else global.
+  // The ?me= link is always printed too (SSH/headless can't pop a browser).
+  const boardUrl = withMe(cfg.roomCode ? cfg.server + "/r/" + cfg.roomCode : cfg.server + "/", cfg);
+  const opened = openBrowser(boardUrl);
+  console.log(`\n  Your board${opened ? " (opening in your browser)" : ""}:`);
+  console.log(`  ${c.y(boardUrl)}`);
+  if (!cfg.roomCode) console.log(`\n  Want a private room for your crew? ${c.dim("ccrank create --name \"Room\"  ·  ccrank join <CODE>")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
 }
@@ -248,7 +296,7 @@ async function create() {
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Room created: ${c.b(name)} — you're in it.`);
   console.log(`  Code:      ${c.y(code)}`);
-  console.log(`  Dashboard: ${c.dim(cfg.server + "/r/" + code)}`);
+  console.log(`  Dashboard: ${c.dim(withMe(cfg.server + "/r/" + code, cfg))}`);
   console.log(`\n  Invite friends — each of them runs:`);
   console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code}`)}\n`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
@@ -284,8 +332,8 @@ async function joinRoom() {
   console.log(`  Every prompt you send and file edit Claude makes scores you a point —`);
   console.log(`  one global score that follows you into every room. Only counts leave`);
   console.log(`  your machine — ${c.b("never your code")}.`);
-  console.log(`\n  Room board:      ${c.y(cfg.server + "/r/" + code)}`);
-  console.log(`  Global board:    ${c.dim(cfg.server + "/")}`);
+  console.log(`\n  Room board:      ${c.y(withMe(cfg.server + "/r/" + code, cfg))}`);
+  console.log(`  Global board:    ${c.dim(withMe(cfg.server + "/", cfg))}`);
   console.log(`  What is ccrank?  ${c.dim("https://github.com/codiejay/cc-rank")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));

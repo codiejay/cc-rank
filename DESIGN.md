@@ -100,10 +100,15 @@ external fonts or assets, ever (CSP-friendly).
   here in seconds."
 
 - **Landing hero (James-requested, 2026-07-18)** — the ONE sanctioned
-  gradient-background exception: a full-width panel on `/` with a slowly
-  drifting "liquid" wash (blurred warm blobs — coral/cream/umber — plus two
-  counter-rotating conic streak layers under 30px blur; blob animations use
-  negative delays so repaints don't visibly restart them). Floating on it: a
+  gradient-background exception: a full-width panel on `/` with an animated
+  coral "water" wash. Built as an inline SVG marble: a coral gradient field
+  (Claude coral dominant) with cream-vein and deep-coral ellipses drifting via
+  CSS transforms through a FIXED feTurbulence + feDisplacementMap noise field
+  (scale ~300, 13px blur on top) — the displacement warps the moving shapes so
+  they flow like liquid. All motion is CSS keyframes (no SMIL) so the global
+  reduced-motion rule freezes it; negative delays hide repaint restarts.
+  James's refs: first a green liquid-bg hero shot, then "look like water, more
+  of Claude primary color, and animate". Floating on it: a
   dark terminal that replays a fake `ccrank top` session printing the REAL
   live global top 5 (mono rows: rank / name / 🔥 streak / tick meter / score),
   ending on a blinking caret. It types once per page load, then repaints go
