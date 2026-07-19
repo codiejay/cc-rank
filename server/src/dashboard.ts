@@ -198,8 +198,11 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   .chartscroll::-webkit-scrollbar { display: none; }
   /* Activity heatmap — GitHub's contribution graph in Claude coral: columns
      are weeks, rows are weekdays, cell shade = that day's intensity. */
+  /* gap is the floor between columns; space-between only adds slack on top of
+     it when the grid fits. Without it, an overflowing (scrolling) grid had
+     zero column spacing — cells fused into strips on phones. */
   .heat { position: relative; display: flex; justify-content: space-between;
-          width: 100%; min-width: max-content; --cell: 12px; }
+          gap: 4px; width: 100%; min-width: max-content; --cell: 12px; }
   .ccol { display: flex; flex-direction: column; gap: 4px; width: var(--cell); flex: none; }
   .heat i, .heatfoot i { width: var(--cell); height: var(--cell); border-radius: 24%;
                          background: var(--h0); flex: none; display: block; }
@@ -1388,7 +1391,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   // ---- chart: daily columns of stacked square dots -------------------------
   // Fluid: the number of days shown and the dot size grow with the card so the
   // chart always fills its width (the API sends up to 120 days).
-  let DIMS = { avail: 760, weeks: 12, span: '' };
+  let DIMS = { avail: 760, weeks: 12, span: '', todayIso: '' };
   let MT = 15; // leaderboard meter ticks
   function measure(){
     const w = document.getElementById('content').clientWidth || 940;
@@ -1443,9 +1446,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     }
     DIMS.weeks = total;
     DIMS.span = monthYr(anchor)+' – '+monthYr(end);
+    DIMS.todayIso = new Date(today).toISOString().slice(0,10);
     const cell = Math.min(20, Math.max(10, Math.floor(DIMS.avail / total) - 4));
-    return { weeks: weeks, cell: cell,
-             todayIso: new Date(today).toISOString().slice(0,10) };
+    return { weeks: weeks, cell: cell, todayIso: DIMS.todayIso };
   }
   // Intensity levels like GitHub: quartiles of the non-zero days.
   function levelFor(val, q){
@@ -1502,19 +1505,34 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     const wd = ['','Mon','','Wed','','Fri',''];
     return '<div class="chartrow">'+
       '<div class="wdays">'+wd.map(function(l){ return '<span>'+l+'</span>'; }).join('')+'</div>'+
-      '<div class="chartscroll"><div style="position:relative;padding-top:22px">'+
+      // The wrapper gets the grid's exact pixel width (cols + gaps) so the
+      // %-positioned month labels track the real columns even when the grid
+      // overflows the card and scrolls — % of the visible width put "Jul…Jun"
+      // in a crumpled heap on phones.
+      '<div class="chartscroll"><div style="position:relative;padding-top:22px;min-width:100%;width:'+
+          (h.weeks.length*h.cell + (h.weeks.length-1)*4)+'px">'+
         '<div class="months" style="top:0;height:18px;line-height:18px">'+months+'</div>'+
         '<div class="heat'+(chartAnimated ? '' : ' anim')+'" style="--cell:'+h.cell+'px" id="dotchart">'+cols+none+'</div>'+
-        '<div class="heatfoot"><span>less</span>'+
-          [0,1,2,3,4].map(function(l){ return '<i class="l'+l+'"></i>'; }).join('')+
-          '<span>more</span></div>'+
         '<div class="tip" id="tip"></div>'+
-      '</div></div></div>';
+      '</div></div></div>'+
+      // legend sits outside the scroll strip — inside it, the year grid's
+      // overflow pushed it past the card edge
+      '<div class="heatfoot"><span>less</span>'+
+        [0,1,2,3,4].map(function(l){ return '<i class="l'+l+'"></i>'; }).join('')+
+        '<span>more</span></div>';
   }
   function bindChart(){
     const chart = document.getElementById('dotchart'), tip = document.getElementById('tip');
     if (!chart || !tip) return;
-    if (chart.classList.contains('anim')) chartAnimated = true; // first mount only
+    if (chart.classList.contains('anim')){ // first mount only
+      chartAnimated = true;
+      // If the year grid overflows (phones), start scrolled so today — and the
+      // lit history left of it — is in view instead of a random future month.
+      const sc = chart.closest('.chartscroll');
+      const t = sc && chart.querySelector('i[data-d="'+DIMS.todayIso+'"]');
+      if (t && sc.scrollWidth > sc.clientWidth)
+        sc.scrollLeft = Math.max(0, t.offsetLeft - sc.clientWidth + 40);
+    }
     chart.addEventListener('mouseover', function(ev){
       const cell = ev.target.closest ? ev.target.closest('i[data-d]') : null;
       if (!cell) return;
