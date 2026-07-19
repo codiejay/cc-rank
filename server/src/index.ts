@@ -278,6 +278,117 @@ app.post("/api/events", async (c) => {
 
 type BoardUser = { id: number; login: string; avatar: string | null; created_at: number };
 
+// ---- badge definitions -----------------------------------------------------
+// One source of truth for the nine badges: the live board crowns current
+// holders from these, and the day-records finalizer replays the exact same
+// predicates against cumulative stats as of each past day-end. Floors are
+// hard qualification gates — see the badge study.
+type BStat = {
+  id: number; prompts: number; edits: number; lines: number; total: number;
+  bigDay: number; activeDays: number; countedDays: number; longestRun: number;
+  weekendDays: number; weekendEvents: number; night: number;
+};
+const BADGE_DEFS: {
+  key: string; label: string;
+  qualifies: (s: BStat) => boolean; value: (s: BStat) => number; lowestWins?: boolean;
+}[] = [
+  { key: "oneshot",   label: "one-shot chief",  qualifies: (s) => s.prompts >= 25 && s.edits >= 50,  value: (s) => s.edits / s.prompts },
+  { key: "conductor", label: "conductor",       qualifies: (s) => s.prompts >= 50 && s.edits >= 25,  value: (s) => s.prompts },
+  { key: "lifter",    label: "heavy lifter",    qualifies: (s) => s.lines >= 2500 && s.edits >= 50,  value: (s) => s.lines },
+  { key: "surgeon",   label: "surgeon",         qualifies: (s) => s.edits >= 75 && s.lines >= 500,   value: (s) => s.lines / s.edits, lowestWins: true },
+  { key: "streak",    label: "streak",          qualifies: (s) => s.longestRun >= 3,                 value: (s) => s.longestRun },
+  { key: "driver",    label: "daily driver",    qualifies: (s) => s.countedDays >= 5,                value: (s) => s.countedDays },
+  { key: "bigday",    label: "big day",         qualifies: (s) => s.bigDay >= 150,                   value: (s) => s.bigDay },
+  { key: "owl",       label: "night owl",
+    qualifies: (s) => s.night >= 50 && s.total >= 200 && s.night / s.total >= 0.15,                  value: (s) => s.night / s.total },
+  { key: "weekend",   label: "weekend warrior",
+    qualifies: (s) => s.weekendDays >= 3 && s.weekendEvents >= 100 && s.activeDays >= 5,             value: (s) => s.weekendEvents / s.total },
+];
+// One winner per badge over a stat population (ties: earliest account,
+// matching the leaderboard rule).
+function badgeHolders(stats: BStat[], createdAt: Map<number, number>) {
+  const out: { key: string; label: string; id: number; value: number }[] = [];
+  for (const d of BADGE_DEFS) {
+    const pool = stats.filter(d.qualifies).sort(
+      (a, b) => (d.lowestWins ? d.value(a) - d.value(b) : d.value(b) - d.value(a)) ||
+        (createdAt.get(a.id) || 0) - (createdAt.get(b.id) || 0));
+    if (pool.length) out.push({ key: d.key, label: d.label, id: pool[0].id, value: d.value(pool[0]) });
+  }
+  return out;
+}
+
+// ---- day records ("record history") ---------------------------------------
+// Users asked for receipts: badges won stack up as ×N and a #1 day finish
+// ("day one") leaves permanent evidence. At each UTC day boundary we snapshot
+// who ENDED the day holding each badge plus the day's top scorer. Finalized
+// lazily on first read after midnight — no cron; INSERT OR IGNORE on the
+// (day, kind) PK makes concurrent finalizes safe; rows are immutable.
+let recMemo = ""; // per-isolate: "already finalized through yesterday"
+async function finalizeDayRecords(db: D1Database) {
+  const yesterday = utcDay(Date.now() - 86400000);
+  if (recMemo === yesterday) return;
+  recMemo = yesterday; // one attempt per isolate per day, even if it fails
+  const last = (await db.prepare("SELECT MAX(day) AS d FROM day_records").first()) as any;
+  let start: string | null = last && last.d ? addDays(last.d, 1) : null;
+  if (!start) {
+    const first = (await db.prepare("SELECT MIN(day) AS d FROM events WHERE capped = 0").first()) as any;
+    start = first && first.d ? first.d : null;
+  }
+  if (!start || start > yesterday) return;
+  const [dayRows, userRows] = await Promise.all([
+    db.prepare(`
+      SELECT user_id AS id, day,
+             SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END) AS prompts,
+             SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END) AS edits,
+             SUM(CASE WHEN kind='edit'   THEN value ELSE 0 END) AS lines,
+             SUM(CASE WHEN CAST(strftime('%H', ts/1000, 'unixepoch') AS INTEGER) < 5 THEN 1 ELSE 0 END) AS night
+      FROM events WHERE capped = 0 AND day <= ?
+      GROUP BY user_id, day ORDER BY day ASC`).bind(yesterday).all(),
+    db.prepare("SELECT github_id AS id, created_at FROM users").all(),
+  ]);
+  const createdAt = new Map((userRows.results as any[]).map((u) => [u.id, u.created_at] as [number, number]));
+  const byDay = new Map<string, any[]>();
+  for (const r of dayRows.results as any[]) {
+    if (!byDay.has(r.day)) byDay.set(r.day, []);
+    byDay.get(r.day)!.push(r);
+  }
+  const isWknd = (d: string) => { const w = new Date(d + "T00:00:00Z").getUTCDay(); return w === 0 || w === 6; };
+  // Walk EVERY day from the first event so cumulative stats (streak runs,
+  // weekend counts) are correct, but only write records for missing days.
+  const cum = new Map<number, BStat & { lastCounted: string; run: number }>();
+  const ins = db.prepare("INSERT OR IGNORE INTO day_records (day, kind, user_id, value) VALUES (?, ?, ?, ?)");
+  const stmts: D1PreparedStatement[] = [];
+  for (const day of [...byDay.keys()].sort()) {
+    for (const r of byDay.get(day)!) {
+      let s = cum.get(r.id);
+      if (!s) {
+        s = { id: r.id, prompts: 0, edits: 0, lines: 0, total: 0, bigDay: 0, activeDays: 0,
+          countedDays: 0, longestRun: 0, weekendDays: 0, weekendEvents: 0, night: 0,
+          lastCounted: "", run: 0 };
+        cum.set(r.id, s);
+      }
+      const n = r.prompts + r.edits;
+      s.prompts += r.prompts; s.edits += r.edits; s.lines += r.lines; s.night += r.night;
+      s.total += n; s.activeDays++; if (n > s.bigDay) s.bigDay = n;
+      if (isWknd(day)) { s.weekendDays++; s.weekendEvents += n; }
+      if (n >= 10) { // counted day — same floor as the live badge math
+        s.run = s.lastCounted && addDays(s.lastCounted, 1) === day ? s.run + 1 : 1;
+        s.lastCounted = day; s.countedDays++;
+        if (s.run > s.longestRun) s.longestRun = s.run;
+      }
+    }
+    if (day < start || day > yesterday) continue;
+    // "day one": that day's top scorer (tie: earliest account, board rule)
+    const top = byDay.get(day)!.slice().sort((a, b) =>
+      (b.prompts + b.edits) - (a.prompts + a.edits) ||
+      (createdAt.get(a.id) || 0) - (createdAt.get(b.id) || 0))[0];
+    if (top) stmts.push(ins.bind(day, "dayone", top.id, top.prompts + top.edits));
+    for (const h of badgeHolders([...cum.values()], createdAt))
+      stmts.push(ins.bind(day, h.key, h.id, Math.round(h.value)));
+  }
+  for (let i = 0; i < stmts.length; i += 90) await db.batch(stmts.slice(i, i + 90));
+}
+
 async function boardPayload(db: D1Database, code: string | null) {
   // The population: everyone, or just the room's members.
   const users = (code
@@ -327,10 +438,14 @@ async function boardPayload(db: D1Database, code: string | null) {
   const since = utcDay(now - 364 * 86400000);
   const hasPop = ids.length || !code;
 
-  // All five data queries are independent of each other — run them in ONE
+  // Write yesterday's day-records (if missing) BEFORE the read wave below so
+  // the records query sees them. Memoized per isolate — normally a no-op.
+  await finalizeDayRecords(db);
+
+  // All data queries are independent of each other — run them in ONE
   // parallel wave instead of serially. This is the difference between ~1s and
   // ~200ms page data on D1.
-  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows] = await Promise.all([
+  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows, recRows] = await Promise.all([
     hasPop
       ? db.prepare(`
           SELECT day, user_id AS id, COUNT(*) AS score FROM events e
@@ -365,6 +480,12 @@ async function boardPayload(db: D1Database, code: string | null) {
           GROUP BY e.user_id`).bind(...bindMembers).all()
           .then((r) => r.results as unknown as { id: number; n: number }[])
       : Promise.resolve([] as { id: number; n: number }[]),
+    // record history: how many day-ends each user held each badge (+ dayone).
+    // Global truth, never room-filtered — badges on room boards still link to
+    // the same global record.
+    db.prepare(`SELECT user_id AS id, kind, COUNT(*) AS n, MAX(day) AS last
+                FROM day_records GROUP BY user_id, kind`).all()
+      .then((r) => r.results as unknown as { id: number; kind: string; n: number; last: string }[]),
   ]);
 
   // ---- daily-winner streaks + rank movement vs yesterday -------------------
@@ -442,32 +563,18 @@ async function boardPayload(db: D1Database, code: string | null) {
       night: nightByUser.get(r.id) || 0,
     };
   });
-  type BStat = (typeof bstats)[number];
   const awards = new Map<number, { key: string; label: string }[]>();
-  const crownIt = (
-    key: string, label: string,
-    qualifies: (s: BStat) => boolean, value: (s: BStat) => number, lowestWins = false
-  ) => {
-    const pool = bstats.filter(qualifies).sort(
-      (a, b) => (lowestWins ? value(a) - value(b) : value(b) - value(a)) ||
-        (createdAt.get(a.id) || 0) - (createdAt.get(b.id) || 0)
-    );
-    if (!pool.length) return;
-    const id = pool[0].id;
-    if (!awards.has(id)) awards.set(id, []);
-    awards.get(id)!.push({ key, label });
-  };
-  crownIt("oneshot", "one-shot chief", (s) => s.prompts >= 25 && s.edits >= 50, (s) => s.edits / s.prompts);
-  crownIt("conductor", "conductor", (s) => s.prompts >= 50 && s.edits >= 25, (s) => s.prompts);
-  crownIt("lifter", "heavy lifter", (s) => s.lines >= 2500 && s.edits >= 50, (s) => s.lines);
-  crownIt("surgeon", "surgeon", (s) => s.edits >= 75 && s.lines >= 500, (s) => s.lines / s.edits, true);
-  crownIt("streak", "streak", (s) => s.longestRun >= 3, (s) => s.longestRun);
-  crownIt("driver", "daily driver", (s) => s.countedDays >= 5, (s) => s.countedDays);
-  crownIt("bigday", "big day", (s) => s.bigDay >= 150, (s) => s.bigDay);
-  crownIt("owl", "night owl",
-    (s) => s.night >= 50 && s.total >= 200 && s.night / s.total >= 0.15, (s) => s.night / s.total);
-  crownIt("weekend", "weekend warrior",
-    (s) => s.weekendDays >= 3 && s.weekendEvents >= 100 && s.activeDays >= 5, (s) => s.weekendEvents / s.total);
+  for (const h of badgeHolders(bstats, createdAt)) {
+    if (!awards.has(h.id)) awards.set(h.id, []);
+    awards.get(h.id)!.push({ key: h.key, label: h.label });
+  }
+
+  // record history per user: [{key, n, last}] — n = day-ends held, incl. 'dayone'
+  const recsBy = new Map<number, { key: string; n: number; last: string }[]>();
+  for (const r of recRows) {
+    if (!recsBy.has(r.id)) recsBy.set(r.id, []);
+    recsBy.get(r.id)!.push({ key: r.kind, n: r.n, last: r.last });
+  }
 
   const enrich = (rows: any[]) =>
     rows.map((r) => {
@@ -476,6 +583,7 @@ async function boardPayload(db: D1Database, code: string | null) {
         ...r,
         streak: streak.get(r.id) || 0,
         awards: awards.get(r.id) || [],
+        records: recsBy.get(r.id) || [],
         // +N = climbed N spots since yesterday, -N = dropped, null = new/no history
         delta: prev == null ? null : prev - r.rank,
       };

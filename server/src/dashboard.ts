@@ -321,6 +321,35 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
            border-radius: 999px; padding: 3px 8px 3px 6px; white-space: nowrap;
            display: inline-flex; align-items: center; gap: 4px; }
   .award > svg { width: 10px; height: 10px; flex: none; display: block; }
+  /* ×N count chip inside a pill — solid gold so the number pops. Only ever
+     rendered from ×2 up; a first win is just the pill. */
+  .awx { font: 800 8px/1 var(--mono); color: var(--card); background: var(--award);
+         border-radius: 99px; padding: 2px 4px 1.5px; margin-left: 1px; }
+  .award.was { opacity: .55; }
+  /* past-awards button: dashed ghost pill next to the gold ones — opens the
+     dropdown of awards this player held before but doesn't hold right now */
+  .pastbtn { font: 700 9.5px/1 var(--mono); color: var(--muted); background: none;
+             border: 1px dashed var(--line2); border-radius: 999px; padding: 3px 8px 3px 6px;
+             display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .pastbtn svg { width: 10px; height: 10px; flex: none; display: block; }
+  .pastbtn:hover { color: var(--ink); border-color: var(--muted); }
+  .pastmenu { position: absolute; z-index: 80; min-width: 216px; background: var(--card);
+              border: 1px solid var(--line2); border-radius: 12px; padding: 7px;
+              box-shadow: 0 14px 36px -10px rgba(0,0,0,.4); }
+  .pmhd { font: 700 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+          color: var(--faint); padding: 5px 8px 7px; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis; }
+  .pmrow { display: flex; align-items: center; gap: 7px; padding: 7px 8px;
+           font: 700 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+           color: var(--award); border-radius: 8px; }
+  .pmrow:hover { background: var(--hover); }
+  .pmico svg { width: 11px; height: 11px; display: block; }
+  .pmx { color: var(--ink); font-weight: 800; }
+  .pmlast { margin-left: auto; padding-left: 10px; color: var(--faint); font-size: 9px;
+            letter-spacing: 0; text-transform: none; }
+  /* all-time awards under the player-card modal */
+  .cardawards { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+                margin-top: 12px; max-width: 480px; }
   /* badge hover = a speech bubble OFF THE HOLDER'S AVATAR, like they're
      saying it (copy is first person, their brag). Same terminal-dark + gold
      surface as before; positioned by JS, tail aimed at the avatar. */
@@ -1152,6 +1181,26 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     document.documentElement.style.overflow = '';
     setTimeout(function(){ el.remove(); }, 240);
   }
+  // Every award the player has EVER owned, under their card: current holds
+  // in full gold, past ones dimmed, ×N from day-end records (never ×1).
+  function cardAwardsHtml(login){
+    const r = rowOf(login);
+    if (!r) return '';
+    const rn = recNOf(r), held = {}, items = [];
+    (r.awards || []).forEach(function(a){
+      if (!BADGES[a.key]) return;
+      held[a.key] = 1;
+      items.push({ key: a.key, n: rn[a.key] || 0, now: true });
+    });
+    pastOf(r).forEach(function(x){ items.push({ key: x.key, n: x.n, now: false }); });
+    if (!items.length) return '';
+    return '<div class="cardawards">'+items.map(function(it){
+      const b = BADGES[it.key];
+      return '<span class="award'+(it.now ? '' : ' was')+'" title="'+
+        (it.now ? 'holding now' : 'held before, not right now')+'">'+
+        b.ico+esc(b.lb)+xN(it.n)+'</span>';
+    }).join('')+'</div>';
+  }
   function openCard(login, score){
     if (cardEl) closeCard();
     const img = location.origin+'/og/'+encodeURIComponent(login)+'.png'+(score!=null?('?v='+score):'');
@@ -1174,6 +1223,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         '<div class="cardcap"><b>'+esc(login)+'</b><span class="dot">\\u00B7</span>'+
           '<a href="https://github.com/'+encodeURIComponent(login)+'" target="_blank" rel="noopener">'+
             'GitHub \\u2197</a></div>'+
+        cardAwardsHtml(login)+
       '</div>';
     m.addEventListener('click', function(ev){ if (ev.target === m) closeCard(); });
     document.body.appendChild(m);
@@ -1641,32 +1691,108 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   // Tips are FIRST PERSON: hovering a badge makes the holder say it off their
   // avatar. Their brag, their mouth. No em dashes, ever.
   const BADGES = {
-    oneshot:   { ico: bIco('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'),
+    oneshot:   { lb: 'one-shot chief', ico: bIco('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'),
                  tip: 'i barely prompt and Claude still does the most. best edits per prompt on the board. and no, not a lucky one-off.' },
-    conductor: { ico: bIco('<path d="M5 19 17 7"/><circle cx="18.5" cy="5.5" r="1.6"/>'),
+    conductor: { lb: 'conductor', ico: bIco('<path d="M5 19 17 7"/><circle cx="18.5" cy="5.5" r="1.6"/>'),
                  tip: 'nobody sends more prompts than me. i stay in Claude\\u2019s ear.' },
-    lifter:    { ico: bIco('<path d="M4 9v6M8 7v10M16 7v10M20 9v6M8 12h8"/>'),
+    lifter:    { lb: 'heavy lifter', ico: bIco('<path d="M4 9v6M8 7v10M16 7v10M20 9v6M8 12h8"/>'),
                  tip: 'most lines changed, period. i ship big diffs, no fear.' },
-    surgeon:   { ico: bIco('<path d="M19 5 7 17l-3 1 1-3L17 3z"/>'),
+    surgeon:   { lb: 'surgeon', ico: bIco('<path d="M19 5 7 17l-3 1 1-3L17 3z"/>'),
                  tip: 'tiny edits, every time. lowest lines per edit here. precision.' },
-    streak:    { ico: bIco('<path d="M12 3c1 3-2 5-2 8a4 4 0 0 0 8 .5C18 8 16 5 12 3z"/>'),
+    streak:    { lb: 'streak', ico: bIco('<path d="M12 3c1 3-2 5-2 8a4 4 0 0 0 8 .5C18 8 16 5 12 3z"/>'),
                  tip: 'longest run of back-to-back days here. real days too, 10+ a day. no midnight one-prompt tricks.' },
-    driver:    { ico: bIco('<rect x="4" y="6" width="16" height="14" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+    driver:    { lb: 'daily driver', ico: bIco('<rect x="4" y="6" width="16" height="14" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
                  tip: 'i show up the most days, full stop. streaks die. i don\\u2019t.' },
-    bigday:    { ico: bIco('<path d="M4 20h16M6 20v-8M12 20V5M18 20v-6"/>'),
+    bigday:    { lb: 'big day', ico: bIco('<path d="M4 20h16M6 20v-8M12 20V5M18 20v-6"/>'),
                  tip: 'the biggest single day anyone has put up on this board. mine. come and take it.' },
-    owl:       { ico: bIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>'),
+    owl:       { lb: 'night owl', ico: bIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>'),
                  tip: 'midnight to 5am is my time. sleep is for the ranked-below.' },
-    weekend:   { ico: bIco('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
-                 tip: 'saturdays and sundays are when i do my damage.' }
+    weekend:   { lb: 'weekend warrior', ico: bIco('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
+                 tip: 'saturdays and sundays are when i do my damage.' },
+    // not a held badge — a receipt. counts UTC days finished at #1.
+    dayone:    { lb: 'day one',
+                 ico: '<svg viewBox="0 0 24 18" fill="currentColor" aria-hidden="true">'+
+                      '<path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/></svg>',
+                 tip: 'finished the day at #1. it\\u2019s written down. forever.' }
   };
+  // records helper: day-end counts per badge key for a row ({key: n})
+  function recNOf(r){
+    const m = {};
+    (r.records || []).forEach(function(x){ m[x.key] = x.n; });
+    return m;
+  }
+  // ×N chip appended to a pill — only ever from ×2 up, a first win is just
+  // the pill itself
+  function xN(n){ return n >= 2 ? '<b class="awx">\\u00D7' + n + '</b>' : ''; }
   function awardsHtml(r){
+    const rn = recNOf(r);
     return (r.awards || []).map(function(a){
       const b = BADGES[a.key];
       if (!b) return '';
       // bubble is spawned by the delegated hover handlers (awShow/awHide)
-      return '<span class="award" tabindex="0" data-bkey="'+esc(a.key)+'">'+b.ico+esc(a.label)+'</span>';
-    }).join('');
+      return '<span class="award" tabindex="0" data-bkey="'+esc(a.key)+'">'+b.ico+esc(a.label)+xN(rn[a.key])+'</span>';
+    }).join('') + pastBtnHtml(r);
+  }
+  // Past awards: records for badges the user does NOT currently hold (dayone
+  // always lives here — it's never "held"). Shown behind a small button so
+  // rows stay tight; the dropdown lists them with ×N and the last date.
+  function pastOf(r){
+    const held = {};
+    (r.awards || []).forEach(function(a){ held[a.key] = 1; });
+    return (r.records || []).filter(function(x){ return BADGES[x.key] && !held[x.key]; })
+      .sort(function(a, b){ return (a.key === 'dayone' ? -1 : b.key === 'dayone' ? 1 : b.n - a.n); });
+  }
+  function pastBtnHtml(r){
+    const past = pastOf(r);
+    if (!past.length) return '';
+    return '<button class="pastbtn" title="past awards" aria-haspopup="true" '+
+      'onclick="pastMenu(event, \\''+esc(r.login||r.name)+'\\')">'+
+      bIco('<path d="M3.5 4v4.5H8M3.5 8.5A8.5 8.5 0 1 0 6 6.2M12 8v4.5l3 2"/>')+
+      past.length+'</button>';
+  }
+  let pmEl = null;
+  function pmClose(){
+    if (!pmEl) return;
+    pmEl.remove(); pmEl = null;
+    document.removeEventListener('click', pmDoc);
+  }
+  function pmDoc(ev){ if (pmEl && !pmEl.contains(ev.target)) pmClose(); }
+  function pastMenu(ev, login){
+    ev.preventDefault(); ev.stopPropagation();
+    if (pmEl){ pmClose(); return; }
+    const r = rowOf(login);
+    const past = r ? pastOf(r) : [];
+    if (!past.length) return;
+    const el = document.createElement('div');
+    el.className = 'pastmenu';
+    el.innerHTML = '<div class="pmhd">'+esc(login)+' \\u00B7 past awards</div>'+
+      past.map(function(x){
+        const b = BADGES[x.key];
+        return '<div class="pmrow"><span class="pmico">'+b.ico+'</span>'+esc(b.lb)+
+          '<b class="pmx">\\u00D7'+x.n+'</b><span class="pmlast">'+esc(niceDay(x.last))+'</span></div>';
+      }).join('');
+    document.body.appendChild(el);
+    const br = ev.currentTarget.getBoundingClientRect();
+    el.style.left = Math.max(8, Math.min(br.left, innerWidth - el.offsetWidth - 8))+'px';
+    el.style.top = (br.bottom + 7 + scrollY)+'px';
+    pmEl = el;
+    setTimeout(function(){ document.addEventListener('click', pmDoc); }, 0);
+  }
+  function niceDay(d){
+    if (!d) return '';
+    return new Date(d+'T00:00:00Z').toLocaleDateString('en-US',
+      { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+  // find a row's live data by login — records are global, first hit wins
+  function rowOf(login){
+    const pools = [];
+    if (GLOBAL){ pools.push(GLOBAL.allTime || []); pools.push(GLOBAL.today || []); }
+    if (ROOM){ pools.push(ROOM.allTime || []); pools.push(ROOM.today || []); }
+    for (var i = 0; i < pools.length; i++){
+      const hit = pools[i].find(function(x){ return (x.login || x.name) === login; });
+      if (hit) return hit;
+    }
+    return null;
   }
   // ---- badge speech bubble -------------------------------------------------
   // One bubble at a time, anchored to the badge HOLDER'S avatar with the tail
@@ -1683,7 +1809,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     el.className = 'awbub'; el.setAttribute('role', 'tooltip');
     el.innerHTML =
       '<span class="awtip-hd"><span class="awtip-ico">'+b.ico+'</span>'+
-      '<span class="awtip-t">'+esc(pill.textContent.trim())+'</span></span>'+
+      '<span class="awtip-t">'+esc(b.lb || pill.textContent.trim())+'</span></span>'+
       '<span class="awtip-x">'+b.tip+'</span>';
     document.body.appendChild(el);
     const r = av.getBoundingClientRect();

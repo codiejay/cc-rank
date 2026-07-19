@@ -95,3 +95,16 @@ CREATE TABLE IF NOT EXISTS analytics (
 CREATE INDEX IF NOT EXISTS idx_analytics_event_day ON analytics(event, day);
 CREATE INDEX IF NOT EXISTS idx_analytics_day      ON analytics(day);
 CREATE INDEX IF NOT EXISTS idx_analytics_actor_day ON analytics(actor, day);
+
+-- "record history" — one row per (day, badge) snapshotting who ENDED that UTC
+-- day holding the badge, plus kind='dayone' for the day's top scorer.
+-- Written lazily on first read after midnight (no cron), INSERT OR IGNORE on
+-- the PK, never updated: these are the receipts behind the ×N award counts.
+CREATE TABLE IF NOT EXISTS day_records (
+  day     TEXT NOT NULL,            -- 'YYYY-MM-DD' (UTC), the finalized day
+  kind    TEXT NOT NULL,            -- badge key ('lifter', 'owl', …) | 'dayone'
+  user_id INTEGER NOT NULL,         -- users.github_id of the holder/winner
+  value   INTEGER NOT NULL DEFAULT 0, -- the qualifying stat, for receipts
+  PRIMARY KEY (day, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_day_records_user ON day_records(user_id);
