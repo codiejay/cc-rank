@@ -326,13 +326,15 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   .awx { font: 800 8px/1 var(--mono); color: var(--card); background: var(--award);
          border-radius: 99px; padding: 2px 4px 1.5px; margin-left: 1px; }
   .award.was { opacity: .55; }
-  /* past-awards button: dashed ghost pill next to the gold ones — opens the
-     dropdown of awards this player held before but doesn't hold right now */
-  .pastbtn { font: 700 9.5px/1 var(--mono); color: var(--muted); background: none;
-             border: 1px dashed var(--line2); border-radius: 999px; padding: 3px 8px 3px 6px;
-             display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-  .pastbtn svg { width: 10px; height: 10px; flex: none; display: block; }
-  .pastbtn:hover { color: var(--ink); border-color: var(--muted); }
+  /* award-record button: a plain shield next to the gold pills — opens the
+     dropdown of every day-end record this player has (held now or before) */
+  .pastbtn { font: 700 10.5px/1 var(--mono); color: var(--award); background: none;
+             border: none; border-radius: 8px; padding: 2px 4px;
+             display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+  .pastbtn svg { width: 16px; height: 16px; flex: none; display: block; }
+  .pastbtn:hover { color: var(--ink); }
+  .pmnow { font: 800 7.5px/1 var(--mono); letter-spacing: .08em; color: var(--card);
+           background: var(--award); border-radius: 99px; padding: 2px 5px 1.5px; }
   .pastmenu { position: absolute; z-index: 80; min-width: 216px; background: var(--card);
               border: 1px solid var(--line2); border-radius: 12px; padding: 7px;
               box-shadow: 0 14px 36px -10px rgba(0,0,0,.4); }
@@ -545,7 +547,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
      hero water treatment (the one sanctioned gradient), night-toned in dark
      via the [data-theme] stop overrides below. */
   /* tue–sat tease: the week's statusline — ink-dark bar, mono, live countdown.
-     Escalation arc across the week: dark (cooking) -> coral water (lock day)
+     Escalation arc across the week: dark (cooking) -> deep coral (lock day)
      -> the gold drop. */
   .w25tease { display: flex; align-items: center; gap: 12px; background: var(--term);
               color: var(--termink); border-radius: 14px; padding: 15px 18px;
@@ -563,20 +565,22 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
                 color: #FFF7EF; letter-spacing: .02em; }
   @keyframes w25pulse { 50% { opacity: .35; } }
 
-  /* sunday: the chart is closing — full coral water, big clock */
-  .w25lock { position: relative; overflow: hidden; border-radius: 14px; margin-bottom: 20px;
-             display: flex; align-items: center; gap: 12px; padding: 18px 20px;
-             color: #FFF7EF; background: #C05F33; box-shadow: var(--shadow); }
-  .w25lock svg.wash { position: absolute; inset: -30px; width: calc(100% + 60px);
-                      height: calc(100% + 60px); }
-  .w25lock .in { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; }
-  .w25lock b { font-size: 16px; font-weight: 750; letter-spacing: -.01em;
-               text-shadow: 0 1px 8px rgba(80,25,8,.35); }
-  .w25lock .sub { font-size: 13px; opacity: .92; text-shadow: 0 1px 8px rgba(80,25,8,.35); }
-  .w25lock .w25cdw .lab { color: rgba(255,247,239,.75); }
-  .w25lock .w25cdw .cd { font-size: 22px; font-weight: 800;
-                         text-shadow: 0 1px 10px rgba(80,25,8,.4); }
-  [data-theme="dark"] .w25lock { background: #4A2114;
+  /* sunday: the chart is closing — same statusline anatomy as the tease,
+     run hot: deep coral, faster pulse, big clock. the water wash stays
+     reserved for the drop masthead where it has room to breathe. */
+  .w25lock { display: flex; align-items: center; gap: 12px; border-radius: 14px;
+             margin-bottom: 20px; padding: 18px 20px; color: #FFF7EF;
+             background: linear-gradient(115deg, #C4602D, #A64A1F 55%, #8F3D18);
+             box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.14); }
+  .w25lock .sq { width: 8px; height: 8px; border-radius: 2px; background: #FFDFC8;
+                 flex: none; animation: w25pulse 1s infinite; }
+  .w25lock .in { display: flex; align-items: center; gap: 12px; flex: 1 1 0; min-width: 0; }
+  .w25lock b { font-size: 16px; font-weight: 750; letter-spacing: -.01em; }
+  .w25lock .sub { font-size: 13px; color: rgba(255,239,227,.72); }
+  .w25lock .w25cdw .lab { color: rgba(255,247,239,.7); }
+  .w25lock .w25cdw .cd { font-size: 22px; font-weight: 800; }
+  [data-theme="dark"] .w25lock {
+    background: linear-gradient(115deg, #6B3018, #4C2110 60%, #38180C);
     box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,.08); }
 
   .w25 { margin-bottom: 20px; }
@@ -686,7 +690,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
      Stack them — copy first, then the countdown on its own full-width row
      under a hairline, label left / big clock right (its own mini statusline). */
   @media (max-width: 560px) {
-    .w25lock { padding: 16px 18px; }
+    .w25lock { padding: 16px 18px; align-items: flex-start; }
+    .w25lock .sq { margin-top: 5px; }
     .w25lock .in { flex-direction: column; align-items: stretch; gap: 13px; }
     .w25lock .w25cdw { margin-left: 0; width: 100%; justify-content: space-between;
       padding-top: 13px; border-top: 1px solid rgba(255,247,239,.3); }
@@ -1733,22 +1738,28 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       return '<span class="award" tabindex="0" data-bkey="'+esc(a.key)+'">'+b.ico+esc(a.label)+xN(rn[a.key])+'</span>';
     }).join('') + pastBtnHtml(r);
   }
-  // Past awards: records for badges the user does NOT currently hold (dayone
-  // always lives here — it's never "held"). Shown behind a small button so
-  // rows stay tight; the dropdown lists them with ×N and the last date.
+  // The trophy case: EVERY day-end record the player has, held-now or not
+  // (dayone always included — it's never "held"). Shown behind the shield so
+  // rows stay tight; the dropdown lists ×N + last date, and tags current holds.
+  function recordsOf(r){
+    return (r.records || []).filter(function(x){ return BADGES[x.key]; })
+      .sort(function(a, b){ return (a.key === 'dayone' ? -1 : b.key === 'dayone' ? 1 : b.n - a.n); });
+  }
+  // records for badges NOT currently held — the card modal's dimmed row
   function pastOf(r){
     const held = {};
     (r.awards || []).forEach(function(a){ held[a.key] = 1; });
-    return (r.records || []).filter(function(x){ return BADGES[x.key] && !held[x.key]; })
-      .sort(function(a, b){ return (a.key === 'dayone' ? -1 : b.key === 'dayone' ? 1 : b.n - a.n); });
+    return recordsOf(r).filter(function(x){ return !held[x.key]; });
+  }
+  function shieldIco(){
+    return bIco('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 11.5l2 2 4-4"/>');
   }
   function pastBtnHtml(r){
-    const past = pastOf(r);
-    if (!past.length) return '';
-    return '<button class="pastbtn" title="past awards" aria-haspopup="true" '+
+    const recs = recordsOf(r);
+    if (!recs.length) return '';
+    return '<button class="pastbtn" title="award record" aria-haspopup="true" '+
       'onclick="pastMenu(event, \\''+esc(r.login||r.name)+'\\')">'+
-      bIco('<path d="M3.5 4v4.5H8M3.5 8.5A8.5 8.5 0 1 0 6 6.2M12 8v4.5l3 2"/>')+
-      past.length+'</button>';
+      shieldIco()+recs.length+'</button>';
   }
   let pmEl = null;
   function pmClose(){
@@ -1761,14 +1772,17 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     ev.preventDefault(); ev.stopPropagation();
     if (pmEl){ pmClose(); return; }
     const r = rowOf(login);
-    const past = r ? pastOf(r) : [];
-    if (!past.length) return;
+    const recs = r ? recordsOf(r) : [];
+    if (!recs.length) return;
+    const held = {};
+    ((r && r.awards) || []).forEach(function(a){ held[a.key] = 1; });
     const el = document.createElement('div');
     el.className = 'pastmenu';
-    el.innerHTML = '<div class="pmhd">'+esc(login)+' \\u00B7 past awards</div>'+
-      past.map(function(x){
+    el.innerHTML = '<div class="pmhd">'+esc(login)+' \\u00B7 award record</div>'+
+      recs.map(function(x){
         const b = BADGES[x.key];
         return '<div class="pmrow"><span class="pmico">'+b.ico+'</span>'+esc(b.lb)+
+          (held[x.key] ? '<span class="pmnow">now</span>' : '')+
           '<b class="pmx">\\u00D7'+x.n+'</b><span class="pmlast">'+esc(niceDay(x.last))+'</span></div>';
       }).join('');
     document.body.appendChild(el);
@@ -1995,29 +2009,13 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     return '<span class="w25cdw"><span class="lab">'+lab+'</span>'+
       '<span class="cd" id="w25cd">'+w25Clock()+'</span></span>';
   }
-  function w25LockWash(){
-    return '<svg class="wash" viewBox="0 0 800 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
-      '<defs><filter id="w25lf" x="-20%" y="-20%" width="140%" height="140%">'+
-        '<feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="4" result="n"/>'+
-        '<feDisplacementMap in="SourceGraphic" in2="n" scale="80"/>'+
-        '<feGaussianBlur stdDeviation="8"/></filter>'+
-      '<linearGradient id="w25lg" x1="0" y1="0" x2="1" y2="1">'+
-        '<stop class="wg1" offset="0" stop-color="#E89A72"/>'+
-        '<stop class="wg2" offset="1" stop-color="#C05F33"/></linearGradient></defs>'+
-      '<rect width="800" height="160" fill="url(#w25lg)"/>'+
-      '<g filter="url(#w25lf)">'+
-        '<ellipse class="wb wv1" cx="200" cy="40" rx="240" ry="55" fill="#F9F2E4" opacity=".5"/>'+
-        '<ellipse class="wb wb2 wv2" cx="580" cy="120" rx="280" ry="60" fill="#A94E28" opacity=".75"/>'+
-        '<ellipse class="wb wb3 wv3" cx="430" cy="30" rx="180" ry="45" fill="#FFF9EC" opacity=".35"/>'+
-      '</g></svg>';
-  }
   // force=true (the /chart page): always render the latest chart, whatever
   // the day-of-week state — the homepage keeps its Mon/Tue-only drop moment.
   function w25Html(chart, force){
     if (!chart) return '';
     const n = (chart.entries || []).length;
     if (!force && chart.state === 'locks_tonight')
-      return '<div class="w25lock">'+w25LockWash()+'<div class="in">'+
+      return '<div class="w25lock"><span class="sq"></span><div class="in">'+
         '<span><b>the weekly 25 locks tonight.</b> '+
         '<span class="sub">whatever the chart says at midnight, it says all week.</span></span>'+
         w25CdHtml('locks in')+'</div></div>';
