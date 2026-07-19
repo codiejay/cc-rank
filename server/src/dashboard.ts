@@ -5,7 +5,7 @@
 // og: per-user share meta for /u/:login pages — values are server-derived
 // (validated login + numbers), escaped here anyway as defense-in-depth.
 export interface OgMeta { login: string; title: string; desc: string; image: string; url: string }
-export function dashboardHtml(code: string | null, og?: OgMeta): string {
+export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"): string {
   // Defense-in-depth: even though the caller only passes a CODE_RE-validated
   // code, harden the serializer so a value could never break out of the inline
   // <script>. JSON.stringify quotes/escapes it, then we unicode-escape <, > and
@@ -313,20 +313,23 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
            border-radius: 999px; padding: 3px 8px 3px 6px; white-space: nowrap;
            display: inline-flex; align-items: center; gap: 4px; }
   .award > svg { width: 10px; height: 10px; flex: none; display: block; }
-  /* hover card — terminal-dark surface with a gold wash, the badge glyph
-     featured big in a soft gold tile next to its name */
+  /* badge hover = a speech bubble OFF THE HOLDER'S AVATAR, like they're
+     saying it (copy is first person, their brag). Same terminal-dark + gold
+     surface as before; positioned by JS, tail aimed at the avatar. */
   .award { position: relative; cursor: default; }
-  .awtip { position: absolute; bottom: calc(100% + 10px); left: 50%;
-           transform: translateX(-50%) translateY(4px); width: 212px;
+  .awbub { position: fixed; width: 218px; z-index: 70; pointer-events: none;
            background: radial-gradient(130% 95% at 16% -12%, rgba(230,182,85,.16), transparent 55%), var(--term);
            border-radius: 12px; padding: 12px 13px 11px;
            box-shadow: 0 14px 36px -10px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.07);
-           opacity: 0; pointer-events: none; z-index: 40;
-           transition: opacity .16s ease, transform .16s ease;
-           text-transform: none; letter-spacing: 0; white-space: normal; text-align: left; }
-  .awtip::after { content: ""; position: absolute; top: 100%; left: 50%;
-                  transform: translateX(-50%); border: 6px solid transparent;
+           opacity: 0; transform: translateY(5px) scale(.97);
+           transition: opacity .16s ease, transform .16s cubic-bezier(.22,1,.36,1);
+           text-align: left; }
+  .awbub.on { opacity: 1; transform: none; }
+  .awbub::after { content: ""; position: absolute; top: 100%; left: var(--tx, 50%);
+                  transform: translateX(-50%); border: 7px solid transparent;
                   border-top-color: var(--term); }
+  .awbub.below::after { top: auto; bottom: 100%;
+                        border-top-color: transparent; border-bottom-color: var(--term); }
   .awtip-hd { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
   .awtip-ico { width: 32px; height: 32px; border-radius: 10px; flex: none;
                display: grid; place-items: center; color: var(--gold);
@@ -334,10 +337,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
   .awtip-ico svg { width: 17px; height: 17px; display: block; }
   .awtip-t { font: 700 10.5px/1.35 var(--mono); letter-spacing: .13em;
              text-transform: uppercase; color: var(--gold); }
-  .awtip-x { font: 400 11.5px/1.55 var(--sans); color: var(--termink); opacity: .92; }
-  .award:hover .awtip, .award:focus-visible .awtip {
-    opacity: 1; transform: translateX(-50%) translateY(0); }
-  @media (prefers-reduced-motion: reduce) { .awtip { transition: none; } }
+  .awtip-x { font: 400 11.5px/1.55 var(--sans); color: var(--termink); opacity: .92;
+             display: block; }
+  @media (prefers-reduced-motion: reduce) { .awbub { transition: none; } }
   .podawards { margin-top: 9px; display: flex; flex-wrap: wrap; justify-content: center;
                gap: 5px; max-width: 100%; }
   /* viewer's own row (?me= / localStorage) — subtle, matches the accent system */
@@ -375,6 +377,62 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
                    background: none; border: 0; border-radius: 8px; padding: 9px 10px; }
   .shmenu button:hover { background: var(--hover); }
   .shmenu button svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+  /* ---- profile card lightbox ----
+     Click any avatar → the user's share card opens as an image over a
+     blue-tinted frosted glass. Card stays crisp; the page behind blurs. */
+  .cardmodal { position: fixed; inset: 0; z-index: 200; display: flex;
+               align-items: center; justify-content: center; padding: 24px;
+               background: rgba(20,42,84,.34);
+               backdrop-filter: blur(16px) saturate(1.2);
+               -webkit-backdrop-filter: blur(16px) saturate(1.2);
+               opacity: 0; transition: opacity .22s ease; }
+  :root[data-theme="dark"] .cardmodal { background: rgba(10,24,54,.52); }
+  .cardmodal.on { opacity: 1; }
+  .cardwrap { position: relative; width: min(660px, 92vw);
+              display: flex; flex-direction: column; align-items: center; gap: 13px;
+              transform: scale(.955) translateY(8px);
+              transition: transform .26s cubic-bezier(.2,.85,.28,1); }
+  .cardmodal.on .cardwrap { transform: none; }
+  .cardframe { position: relative; width: 100%; aspect-ratio: 1200/630;
+               border-radius: 16px; overflow: hidden; background: var(--skbg);
+               box-shadow: 0 34px 90px -26px rgba(0,0,0,.62),
+                           0 0 0 1px rgba(255,255,255,.14),
+                           inset 0 0 0 1px rgba(255,255,255,.05); }
+  .cardframe::before { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+                       background: linear-gradient(90deg, transparent, var(--skhi), transparent);
+                       animation: sksweep 1.8s ease-in-out infinite; }
+  .cardframe.ready::before, .cardframe.failed::before { animation: none; display: none; }
+  .cardframe img { position: absolute; inset: 0; width: 100%; height: 100%;
+                   object-fit: cover; display: block; opacity: 0; transition: opacity .35s ease-out; }
+  .cardframe.ready img { opacity: 1; }
+  .cardframe .cardfail { position: absolute; inset: 0; display: none; align-items: center;
+                         justify-content: center; text-align: center; padding: 0 20px;
+                         font: 600 12px/1.6 var(--mono); color: var(--muted); }
+  .cardframe.failed .cardfail { display: flex; }
+  .cardcap { display: flex; align-items: center; gap: 9px; max-width: 100%;
+             font: 600 12.5px/1 var(--sans); color: rgba(255,255,255,.9);
+             text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .cardcap b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cardcap .dot { color: rgba(255,255,255,.5); }
+  .cardcap a { color: rgba(255,255,255,.72); text-decoration: none; display: inline-flex;
+               align-items: center; gap: 4px; }
+  .cardcap a:hover { color: #fff; }
+  .cardx { position: fixed; top: 18px; right: 18px; width: 40px; height: 40px; cursor: pointer;
+           display: grid; place-items: center; border: 0; border-radius: 50%;
+           background: rgba(255,255,255,.14); color: #fff;
+           backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+           transition: background .15s ease, transform .15s ease; }
+  .cardx:hover { background: rgba(255,255,255,.26); transform: scale(1.06); }
+  .cardx svg { width: 20px; height: 20px; }
+  /* whole row / podium tile is a card trigger; the username link opts out */
+  .lclk, .pclk { cursor: pointer; }
+  .lclk .nm a, .pclk .podnm a { cursor: pointer; }
+  @media (max-width: 640px) {
+    .cardmodal { padding: 16px; }
+    .cardwrap { width: 94vw; gap: 11px; }
+    .cardframe { border-radius: 13px; }
+    .cardx { top: 12px; right: 12px; width: 36px; height: 36px; }
+  }
   .delta { font: 700 10.5px/1 var(--mono); }
   .delta.up { color: var(--up); } .delta.down { color: var(--down); }
   .meter { position: relative; width: 108px; height: 10px; overflow: hidden;
@@ -406,7 +464,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
   @keyframes crownfloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
   .pod.p2 .podcrown, .pod.p3 .podcrown { visibility: hidden; }
   .podav { position: relative; display: block; border-radius: 50%; text-decoration: none;
-           padding: 3px; background: var(--card);
+           padding: 3px; background: var(--card); cursor: pointer;
            box-shadow: 0 0 0 2px var(--medal), 0 6px 16px -8px rgba(0,0,0,.4); }
   .pod.p1 .podav { box-shadow: 0 0 0 2.5px var(--gold), 0 0 22px -2px var(--gold-glow), 0 8px 20px -8px rgba(0,0,0,.45);
                    animation: podglow 3s ease-in-out infinite; }
@@ -441,6 +499,168 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
   .pod.me .podnm a { color: var(--accent-deep); }
   @media (prefers-reduced-motion: reduce) {
     .pod { animation: none; } .podcrown, .pod.p1 .podav { animation: none; } }
+
+  /* ---- the weekly 25 -------------------------------------------------------
+     Three banner states above the board (global page only): a quiet strip
+     while the week is cooking, an urgent strip on lock day (Sunday), and the
+     full Monday drop — coral-wash masthead + gold most-cracked spotlight +
+     charting rows. Every surface goes through token pairs; the wash is the
+     hero water treatment (the one sanctioned gradient), night-toned in dark
+     via the [data-theme] stop overrides below. */
+  /* tue–sat tease: the week's statusline — ink-dark bar, mono, live countdown.
+     Escalation arc across the week: dark (cooking) -> coral water (lock day)
+     -> the gold drop. */
+  .w25tease { display: flex; align-items: center; gap: 12px; background: var(--term);
+              color: var(--termink); border-radius: 14px; padding: 15px 18px;
+              margin-bottom: 20px; font-size: 13.5px;
+              box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06); }
+  .w25tease .sq { width: 8px; height: 8px; border-radius: 2px; background: var(--accent);
+                  flex: none; animation: w25pulse 1.6s infinite; }
+  .w25tease .tx b { color: var(--accent); font-weight: 700; }
+  .w25tease .tx { letter-spacing: .01em; }
+  .w25tease .sub { color: rgba(244,239,229,.55); }
+  .w25cdw { margin-left: auto; display: flex; align-items: baseline; gap: 10px; flex: none; }
+  .w25cdw .lab { font: 600 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+                 color: rgba(244,239,229,.5); }
+  .w25cdw .cd { font: 700 16px/1 var(--mono); font-variant-numeric: tabular-nums;
+                color: #FFF7EF; letter-spacing: .02em; }
+  @keyframes w25pulse { 50% { opacity: .35; } }
+
+  /* sunday: the chart is closing — full coral water, big clock */
+  .w25lock { position: relative; overflow: hidden; border-radius: 14px; margin-bottom: 20px;
+             display: flex; align-items: center; gap: 12px; padding: 18px 20px;
+             color: #FFF7EF; background: #C05F33; box-shadow: var(--shadow); }
+  .w25lock svg.wash { position: absolute; inset: -30px; width: calc(100% + 60px);
+                      height: calc(100% + 60px); }
+  .w25lock .in { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; }
+  .w25lock b { font-size: 16px; font-weight: 750; letter-spacing: -.01em;
+               text-shadow: 0 1px 8px rgba(80,25,8,.35); }
+  .w25lock .sub { font-size: 13px; opacity: .92; text-shadow: 0 1px 8px rgba(80,25,8,.35); }
+  .w25lock .w25cdw .lab { color: rgba(255,247,239,.75); }
+  .w25lock .w25cdw .cd { font-size: 22px; font-weight: 800;
+                         text-shadow: 0 1px 10px rgba(80,25,8,.4); }
+  [data-theme="dark"] .w25lock { background: #4A2114;
+    box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,.08); }
+
+  .w25 { margin-bottom: 20px; }
+  .w25card { background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+             overflow: hidden; }
+  .w25wash { position: relative; height: 152px; overflow: hidden; background: #C05F33; }
+  .w25wash svg { position: absolute; inset: -30px; width: calc(100% + 60px); height: calc(100% + 60px); }
+  .w25wash .wb { transform-origin: center; animation: w25drift 16s ease-in-out infinite alternate; }
+  .w25wash .wb2 { animation-duration: 21s; animation-delay: -8s; }
+  .w25wash .wb3 { animation-duration: 25s; animation-delay: -13s; }
+  @keyframes w25drift {
+    from { transform: translate(-4%,-6%) scale(1) rotate(0deg); }
+    to   { transform: translate(5%,7%) scale(1.16) rotate(8deg); } }
+  [data-theme="dark"] .w25wash { background: #4A2114; }
+  [data-theme="dark"] .w25wash .wg1 { stop-color: #8A4128; }
+  [data-theme="dark"] .w25wash .wg2 { stop-color: #5E2C1B; }
+  [data-theme="dark"] .w25wash .wv1 { fill: #C97B54; }
+  [data-theme="dark"] .w25wash .wv2 { fill: #3A1C10; }
+  [data-theme="dark"] .w25wash .wv3 { fill: #E0895D; }
+  .w25head { position: relative; height: 100%; display: flex; flex-direction: column;
+             justify-content: center; padding: 0 22px; color: #FFF7EF; }
+  .w25head .k { font: 700 11px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+                opacity: .9; animation: w25up .6s cubic-bezier(.22,1,.36,1) both;
+                text-shadow: 0 1px 8px rgba(80,25,8,.35); }
+  .w25head h2 { margin: 4px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -.025em;
+                animation: w25up .6s .1s cubic-bezier(.22,1,.36,1) both;
+                text-shadow: 0 1px 12px rgba(80,25,8,.35); }
+  .w25head .d { font: 12.5px/1 var(--mono); opacity: .9; margin-top: 7px;
+                animation: w25up .6s .18s cubic-bezier(.22,1,.36,1) both;
+                text-shadow: 0 1px 8px rgba(80,25,8,.35); }
+  @keyframes w25up { from { opacity: 0; transform: translateY(10px); } }
+  .w25.quiet .w25head .k, .w25.quiet .w25head h2, .w25.quiet .w25head .d { animation: none; }
+
+  .w25no1 { display: flex; align-items: center; gap: 16px; padding: 20px;
+            background: var(--gold-soft); box-shadow: inset 0 -1px 0 var(--award-bd);
+            animation: w25up .6s .35s cubic-bezier(.22,1,.36,1) both; }
+  .w25.quiet .w25no1 { animation: none; }
+  .w25no1 .avwrap { position: relative; flex: none; }
+  .w25no1 .ava { width: 62px; height: 62px; font-size: 22px;
+                 box-shadow: 0 0 0 3px var(--gold), 0 0 22px var(--gold-glow); }
+  .w25no1 .ava img { width: 62px; height: 62px; }
+  .w25crown { position: absolute; top: -13px; left: 50%; width: 22px; height: 17px;
+              transform: translateX(-50%); color: var(--gold);
+              animation: w25crown .55s .8s cubic-bezier(.34,1.56,.64,1) both; }
+  .w25crown svg { width: 100%; height: 100%; display: block; }
+  .w25.quiet .w25crown { animation: none; }
+  @keyframes w25crown { from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.6); } }
+  .w25no1 .who { min-width: 0; }
+  .w25no1 .k { font: 700 10.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+               color: var(--award); }
+  .w25no1 .nm { font-size: 22px; font-weight: 800; margin: 3px 0 3px; letter-spacing: -.01em; }
+  .w25no1 .nm a { text-decoration: none; }
+  .w25no1 .nm a:hover { text-decoration: underline; }
+  .w25no1 .meta { font: 12px/1.4 var(--mono); color: var(--muted); }
+  .w25no1 .scr { margin-left: auto; text-align: right; flex: none; }
+  .w25no1 .scr b { display: block; font: 800 34px/1.1 var(--mono); letter-spacing: -.02em; }
+  .w25no1 .scr span { font: 700 11.5px/1 var(--mono); color: var(--award); }
+  /* the one sanctioned gradient-text use beyond the stat glint: same sweep */
+  .w25no1 .scr b.glint {
+    background: linear-gradient(100deg, var(--ink) 42%, var(--accent) 50%, var(--ink) 58%);
+    background-size: 280% 100%; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: w25glint 4.5s 1.4s ease-in-out infinite; }
+  @keyframes w25glint { 0% { background-position: 120% 0; } 55%,100% { background-position: -160% 0; } }
+
+  .w25row { display: flex; align-items: center; gap: 12px; padding: 11px 16px;
+            border-top: 1px solid var(--line);
+            animation: w25up .55s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d,0s); }
+  .w25.quiet .w25row { animation: none; }
+  .w25row:hover { background: var(--hover); }
+  .w25row .pos { width: 26px; font: 13px/1 var(--mono); color: var(--muted); flex: none; }
+  .w25mv { width: 40px; flex: none; font: 700 11.5px/1 var(--mono);
+           animation: w25pop .45s cubic-bezier(.34,1.56,.64,1) both;
+           animation-delay: calc(var(--d,0s) + .25s); }
+  .w25.quiet .w25mv { animation: none; }
+  @keyframes w25pop { from { opacity: 0; transform: scale(.5); } }
+  .w25mv.up { color: var(--up); } .w25mv.down { color: var(--down); }
+  .w25mv.flat { color: var(--faint); }
+  .w25mv .tagb { display: inline-block; font: 700 9.5px/1 var(--mono); letter-spacing: .06em;
+                 padding: 3px 5px; border-radius: 5px; background: var(--accent-soft);
+                 color: var(--accent-deep); }
+  .w25row .who { min-width: 0; flex: 1; }
+  .w25row .nm { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden;
+                text-overflow: ellipsis; }
+  .w25row .nm a { text-decoration: none; }
+  .w25row .nm a:hover { text-decoration: underline; }
+  .w25row .meta { font: 11.5px/1.4 var(--mono); color: var(--muted); }
+  .w25row .hist { width: 112px; flex: none; text-align: right; font: 11px/1 var(--mono);
+                  color: var(--muted); white-space: nowrap; }
+  .w25row .sc { width: 56px; flex: none; text-align: right; font: 700 14px/1 var(--mono); }
+  .w25foot { display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+             border-top: 1px solid var(--line); font: 12px/1 var(--mono); color: var(--muted); }
+  .w25foot button { margin-left: auto; border: 1px solid var(--line2); background: transparent;
+                    color: var(--ink); font: 600 12px/1 var(--sans); padding: 6px 12px;
+                    border-radius: 8px; cursor: pointer; }
+  .w25foot button:hover { background: var(--hover); }
+  @media (prefers-reduced-motion: reduce) {
+    .w25wash .wb, .w25head .k, .w25head h2, .w25head .d, .w25no1, .w25crown,
+    .w25row, .w25mv, .w25strip.urgent .sq { animation: none; }
+    .w25no1 .scr b.glint { animation: none; background: none;
+      -webkit-text-fill-color: currentColor; color: var(--ink); } }
+  @media (max-width: 700px) {
+    .w25row .w25meter, .w25row .hist { display: none; }
+    .w25head h2 { font-size: 21px; } }
+  /* phones: the strips put the copy and the countdown side-by-side, which
+     starves the copy into a cramped 3-line column and squeezes the clock.
+     Stack them — copy first, then the countdown on its own full-width row
+     under a hairline, label left / big clock right (its own mini statusline). */
+  @media (max-width: 560px) {
+    .w25lock { padding: 16px 18px; }
+    .w25lock .in { flex-direction: column; align-items: stretch; gap: 13px; }
+    .w25lock .w25cdw { margin-left: 0; width: 100%; justify-content: space-between;
+      padding-top: 13px; border-top: 1px solid rgba(255,247,239,.3); }
+    .w25lock .w25cdw .cd { font-size: 26px; }
+    .w25tease { flex-wrap: wrap; align-items: flex-start; padding: 14px 16px; }
+    .w25tease .sq { margin-top: 5px; }
+    .w25tease .tx { flex: 1 1 0; min-width: 0; }
+    .w25tease .w25cdw { flex-basis: 100%; width: 100%; margin-left: 0;
+      justify-content: space-between; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.12); }
+    .w25tease .w25cdw .cd { font-size: 18px; } }
 
   /* ---- right rail ---- */
   .rail { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
@@ -772,6 +992,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     <a class="nav" id="navHome" href="/">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="9" width="4" height="12" rx="1"/></svg>
       Global</a>
+    <a class="nav" id="navChart" href="/chart">
+      <svg viewBox="0 0 24 18" fill="currentColor" aria-hidden="true" style="padding:1px 0"><path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/><rect x="3.5" y="16" width="17" height="1.8" rx=".9"/></svg>
+      the weekly 25</a>
     <div class="navsec">Rooms <span class="cnt" id="roomCnt"></span></div>
     <div id="navRooms"></div>
     <div class="spacer"></div>
@@ -798,6 +1021,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
 </div>
 <script>
   let CODE = ${initial};
+  // /chart: the weekly 25's permanent home — always shows the latest chart.
+  const CHARTPG = ${page === "chart" ? "true" : "false"};
   let mode = "allTime";      // leaderboard range (segmented control)
   let metric = "score";      // chart metric (metric strip tabs)
   let GLOBAL = null, ROOM = null, NOTFOUND = false;
@@ -903,6 +1128,49 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
       '<img src="'+esc(src)+'" alt="" decoding="sync" onload="avOk(this)" onerror="this.remove()">'+
       '</span>';
   }
+  // ---- profile card lightbox -----------------------------------------------
+  // The same PNG the share menu previews (/og/<login>.png), shown big over a
+  // blue frosted-glass scrim. Backdrop click or Esc closes.
+  let cardEl = null;
+  function cardKey(ev){ if (ev.key === 'Escape') closeCard(); }
+  function closeCard(){
+    if (!cardEl) return;
+    const el = cardEl; cardEl = null;
+    el.classList.remove('on');
+    document.removeEventListener('keydown', cardKey);
+    document.documentElement.style.overflow = '';
+    setTimeout(function(){ el.remove(); }, 240);
+  }
+  function openCard(login, score){
+    if (cardEl) closeCard();
+    const img = location.origin+'/og/'+encodeURIComponent(login)+'.png'+(score!=null?('?v='+score):'');
+    const m = document.createElement('div');
+    m.className = 'cardmodal';
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-label', login+'\\u2019s ccrank card');
+    m.innerHTML =
+      '<button class="cardx" aria-label="close" onclick="closeCard()">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '+
+        'stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>'+
+      '<div class="cardwrap">'+
+        '<div class="cardframe">'+
+          '<img src="'+esc(img)+'" alt="'+esc(login)+' on ccrank" '+
+            'onload="this.closest(\\'.cardframe\\').classList.add(\\'ready\\')" '+
+            'onerror="this.closest(\\'.cardframe\\').classList.add(\\'failed\\')">'+
+          '<span class="cardfail">card didn\\u2019t load \\u2014 try again in a moment.</span>'+
+        '</div>'+
+        '<div class="cardcap"><b>'+esc(login)+'</b><span class="dot">\\u00B7</span>'+
+          '<a href="https://github.com/'+encodeURIComponent(login)+'" target="_blank" rel="noopener">'+
+            'GitHub \\u2197</a></div>'+
+      '</div>';
+    m.addEventListener('click', function(ev){ if (ev.target === m) closeCard(); });
+    document.body.appendChild(m);
+    cardEl = m;
+    document.documentElement.style.overflow = 'hidden';
+    requestAnimationFrame(function(){ m.classList.add('on'); });
+    document.addEventListener('keydown', cardKey);
+  }
   // ---- share menu ----------------------------------------------------------
   // One floating menu at a time, anchored to the clicked share button.
   // ?v=score on both URLs: every score change is a NEW url to X's crawler,
@@ -937,7 +1205,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
         ic.x+'Copy image &amp; open X</button>'+
       '<button onclick="shDl(\\''+esc(img)+'\\', \\''+esc(login)+'\\')">'+ic.dl+'Download PNG</button>'+
       '<button onclick="shCopyLink(this, \\''+esc(link)+'\\')">'+ic.ln+'Copy link</button>'+
-      '<button onclick="shBadge(this, \\''+esc(login)+'\\')">'+ic.md+'Copy README badge</button>';
+      '<button onclick="shBadge(this, \\''+esc(login)+'\\')">'+ic.md+'Copy README badge</button>'+
+      w25ShareBtn(login);
     document.body.appendChild(m);
     const r = ev.currentTarget.getBoundingClientRect();
     const left = Math.min(r.left, innerWidth - 268);
@@ -984,6 +1253,45 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     a.href = img; a.download = 'ccrank-'+login+'.png';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(shClose, 400);
+  }
+  // Chart-card share: only offered when this login is on the latest weekly 25.
+  function w25Entry(login){
+    const chart = GLOBAL && GLOBAL.chart;
+    if (!chart || !(chart.entries || []).length) return null;
+    for (var i = 0; i < chart.entries.length; i++)
+      if (chart.entries[i].login.toLowerCase() === String(login).toLowerCase())
+        return chart.entries[i];
+    return null;
+  }
+  function w25ShareBtn(login){
+    const e = w25Entry(login);
+    if (!e) return '';
+    const chIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M12 20V4M18 20v-10"/></svg>';
+    return '<button onclick="shChart(this, \\''+esc(login)+'\\', '+e.position+')">'+
+      chIco+'Copy weekly 25 card &amp; open X</button>';
+  }
+  async function shChart(btn, login, position){
+    const label = btn.lastChild;
+    const e = w25Entry(login) || { tag: null, movement: null };
+    const img = location.origin+'/og/chart/'+encodeURIComponent(login)+'.png';
+    let copied = false;
+    try {
+      label.textContent = 'copying\\u2026';
+      const p = fetch(img).then(function(r){ if (!r.ok) throw 0; return r.blob(); });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': p })]);
+      copied = true;
+    } catch (err) { shDl(img, login + '-weekly25'); }
+    const how = e.tag === 'NEW' ? 'debuted at #'+position+' on'
+      : e.movement > 0 ? 'climbed to #'+position+' on'
+      : position === 1 ? 'runs' : '#'+position+' on';
+    const flex = position === 1 ? 'come and take it.' : 'catch me on the chart.';
+    const text = (how === 'runs' ? 'I run the weekly 25.' : how+' the weekly 25.')+
+      ' the Claude Code chart, new every monday. '+flex+'\\n\\n'+location.origin+'/chart';
+    const w = window.open('https://x.com/intent/post?text='+encodeURIComponent(text),
+      '_blank', 'noopener');
+    if (!w){ label.textContent = copied ? 'copied. click again for X' : 'click again for X'; return; }
+    label.textContent = copied ? 'copied. paste it in your post' : 'downloaded. attach it';
+    setTimeout(shClose, 2200);
   }
   // Markdown for a live rank badge in any GitHub README/profile. The badge
   // links back to the user's share page.
@@ -1080,7 +1388,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
   // ---- chart: daily columns of stacked square dots -------------------------
   // Fluid: the number of days shown and the dot size grow with the card so the
   // chart always fills its width (the API sends up to 120 days).
-  let DIMS = { avail: 760, weeks: 12 };
+  let DIMS = { avail: 760, weeks: 12, span: '' };
   let MT = 15; // leaderboard meter ticks
   function measure(){
     const w = document.getElementById('content').clientWidth || 940;
@@ -1101,25 +1409,43 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     return m;
   }
   function metricOf(v){ return metric === 'prompts' ? v.p : metric === 'edits' ? v.e : v.p + v.e; }
-  // GitHub-style grid: columns are weeks (Sunday-first), ending on the week
-  // that contains today. As many weeks as fit the card, up to a full year.
+  // GitHub-style grid (columns are weeks, Sunday-first) — but launch-anchored,
+  // not trailing. ccrank is new and we don't backfill, so a trailing year would
+  // be months of pre-launch gray with today's data crushed against the right
+  // edge. Instead the window opens at the launch month and runs 12 months
+  // forward: the empty year ahead is the point — it's there to fill up.
+  // Once history outgrows that (anchor below stops clamping to launch), the
+  // window slides to "11 months back + the current month" and the chart
+  // matures into the classic trailing-year graph on its own.
+  const LAUNCH_UTC = Date.UTC(2026, 6, 1); // Jul 2026 — ccrank's first live month
+  function monthYr(t){
+    return new Date(t).toLocaleDateString('en-US',
+      { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
   function heatWeeks(){
     const now = new Date();
     const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const maxWeeks = Math.min(53, Math.max(8, Math.floor(DIMS.avail / 14)));
-    const lastSunday = today - new Date(today).getUTCDay()*86400000;
+    const anchor = Math.max(LAUNCH_UTC,
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
+    const a = new Date(anchor);
+    const end = Date.UTC(a.getUTCFullYear() + 1, a.getUTCMonth(), 1) - 86400000;
+    const firstSunday = anchor - a.getUTCDay()*86400000;
+    const total = Math.ceil((end + 86400000 - firstSunday) / (7*86400000));
     const weeks = [];
-    for (let w = maxWeeks - 1; w >= 0; w--){
+    for (let w = 0; w < total; w++){
       const col = [];
       for (let d = 0; d < 7; d++){
-        const t = lastSunday - w*7*86400000 + d*86400000;
-        col.push(t > today ? null : new Date(t).toISOString().slice(0,10));
+        const t = firstSunday + (w*7 + d)*86400000;
+        // outside the 12-month window (alignment padding) -> null -> invisible
+        col.push(t < anchor || t > end ? null : new Date(t).toISOString().slice(0,10));
       }
       weeks.push(col);
     }
-    DIMS.weeks = maxWeeks;
-    const cell = Math.min(20, Math.max(10, Math.floor(DIMS.avail / maxWeeks) - 4));
-    return { weeks: weeks, cell: cell };
+    DIMS.weeks = total;
+    DIMS.span = monthYr(anchor)+' – '+monthYr(end);
+    const cell = Math.min(20, Math.max(10, Math.floor(DIMS.avail / total) - 4));
+    return { weeks: weeks, cell: cell,
+             todayIso: new Date(today).toISOString().slice(0,10) };
   }
   // Intensity levels like GitHub: quartiles of the non-zero days.
   function levelFor(val, q){
@@ -1150,6 +1476,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
       return '<div class="ccol">'+col.map(function(d, di){
         // diagonal wave: top-left tiles land first, sweeping to bottom-right
         if (!d) return '<i class="off" style="--i:'+(wi+di)+'"></i>';
+        // future days render as empty cells (the year to fill), no tooltip
+        if (d > h.todayIso) return '<i class="l0" style="--i:'+(wi+di)+'"></i>';
         const v = sm[d] || {p:0,e:0};
         return '<i class="l'+levelFor(metricOf(v), q)+'" style="--i:'+(wi+di)+
           '" data-d="'+d+'" data-p="'+v.p+'" data-e="'+v.e+'"></i>';
@@ -1159,13 +1487,15 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     let months = '';
     let prev = '';
     h.weeks.forEach(function(col, wi){
-      const d = col[0] || '';
+      // first real day of the column (col[0] can be alignment padding)
+      const d = col.find(function(x){ return x; }) || '';
       if (!d) return;
       const m = d.slice(0,7);
       if (m !== prev){ prev = m;
-        if (wi > 0 && wi < h.weeks.length - 1)
+        if (wi < h.weeks.length - 1)
           months += '<span style="left:'+(wi/(h.weeks.length-1)*100).toFixed(2)+'%">'+
-            new Date(d+'T00:00:00Z').toLocaleDateString('en-US',{month:'short'})+'</span>';
+            new Date(d+'T00:00:00Z').toLocaleDateString('en-US',
+              {month:'short', timeZone:'UTC'})+'</span>';
       }
     });
     const none = vals.length ? '' : '<div class="chna">no activity in this window yet</div>';
@@ -1282,38 +1612,81 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '+
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+paths+'</svg>';
   }
+  // Tips are FIRST PERSON: hovering a badge makes the holder say it off their
+  // avatar. Their brag, their mouth. No em dashes, ever.
   const BADGES = {
     oneshot:   { ico: bIco('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'),
-                 tip: 'barely prompts and Claude still does the most. highest edits per prompt. you need 25 prompts before this even counts, so no lucky one-offs.' },
+                 tip: 'i barely prompt and Claude still does the most. best edits per prompt on the board. and no, not a lucky one-off.' },
     conductor: { ico: bIco('<path d="M5 19 17 7"/><circle cx="18.5" cy="5.5" r="1.6"/>'),
-                 tip: 'sends the most prompts on the board. always in Claude\\u2019s ear.' },
+                 tip: 'nobody sends more prompts than me. i stay in Claude\\u2019s ear.' },
     lifter:    { ico: bIco('<path d="M4 9v6M8 7v10M16 7v10M20 9v6M8 12h8"/>'),
-                 tip: 'the most lines changed, period. big diffs, no fear.' },
+                 tip: 'most lines changed, period. i ship big diffs, no fear.' },
     surgeon:   { ico: bIco('<path d="M19 5 7 17l-3 1 1-3L17 3z"/>'),
-                 tip: 'tiny edits, every time. lowest lines per edit on the board.' },
+                 tip: 'tiny edits, every time. lowest lines per edit here. precision.' },
     streak:    { ico: bIco('<path d="M12 3c1 3-2 5-2 8a4 4 0 0 0 8 .5C18 8 16 5 12 3z"/>'),
-                 tip: 'longest run of back-to-back days. 10+ events a day or it doesn\\u2019t count \\u2014 no sneaking one prompt at midnight to keep it alive.' },
+                 tip: 'longest run of back-to-back days here. real days too, 10+ a day. no midnight one-prompt tricks.' },
     driver:    { ico: bIco('<rect x="4" y="6" width="16" height="14" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
-                 tip: 'shows up the most days, full stop. streaks die when you miss a day. this one never does.' },
+                 tip: 'i show up the most days, full stop. streaks die. i don\\u2019t.' },
     bigday:    { ico: bIco('<path d="M4 20h16M6 20v-8M12 20V5M18 20v-6"/>'),
-                 tip: 'the biggest single day anyone has ever put up here. come and take it.' },
+                 tip: 'the biggest single day anyone has put up on this board. mine. come and take it.' },
     owl:       { ico: bIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>'),
-                 tip: 'midnight to 5am. why are you awake?' },
+                 tip: 'midnight to 5am is my time. sleep is for the ranked-below.' },
     weekend:   { ico: bIco('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
-                 tip: 'does most of their damage on saturdays and sundays.' }
+                 tip: 'saturdays and sundays are when i do my damage.' }
   };
   function awardsHtml(r){
     return (r.awards || []).map(function(a){
       const b = BADGES[a.key];
       if (!b) return '';
-      return '<span class="award" tabindex="0">'+b.ico+esc(a.label)+
-        '<span class="awtip" role="tooltip">'+
-          '<span class="awtip-hd"><span class="awtip-ico">'+b.ico+'</span>'+
-          '<span class="awtip-t">'+esc(a.label)+'</span></span>'+
-          '<span class="awtip-x">'+b.tip+'</span>'+
-        '</span></span>';
+      // bubble is spawned by the delegated hover handlers (awShow/awHide)
+      return '<span class="award" tabindex="0" data-bkey="'+esc(a.key)+'">'+b.ico+esc(a.label)+'</span>';
     }).join('');
   }
+  // ---- badge speech bubble -------------------------------------------------
+  // One bubble at a time, anchored to the badge HOLDER'S avatar with the tail
+  // aimed at them. Delegated: board HTML is rebuilt on every poll repaint, so
+  // per-pill listeners would be wiped; document-level survives.
+  let awEl = null;
+  function awShow(pill){
+    const b = BADGES[pill.getAttribute('data-bkey')];
+    const host = pill.closest('.pod') || pill.closest('.lrow');
+    const av = host && host.querySelector('.ava');
+    if (!b || !av) return;
+    awHide();
+    const el = document.createElement('div');
+    el.className = 'awbub'; el.setAttribute('role', 'tooltip');
+    el.innerHTML =
+      '<span class="awtip-hd"><span class="awtip-ico">'+b.ico+'</span>'+
+      '<span class="awtip-t">'+esc(pill.textContent.trim())+'</span></span>'+
+      '<span class="awtip-x">'+b.tip+'</span>';
+    document.body.appendChild(el);
+    const r = av.getBoundingClientRect();
+    const x = Math.max(8, Math.min(r.left + r.width/2 - el.offsetWidth/2,
+      innerWidth - el.offsetWidth - 8));
+    let y = r.top - el.offsetHeight - 11;
+    if (y < 8){ y = r.bottom + 11; el.classList.add('below'); }
+    el.style.left = x+'px'; el.style.top = y+'px';
+    el.style.setProperty('--tx', (r.left + r.width/2 - x)+'px');
+    requestAnimationFrame(function(){ el.classList.add('on'); });
+    awEl = el;
+  }
+  function awHide(){ if (awEl){ awEl.remove(); awEl = null; } }
+  document.addEventListener('mouseover', function(ev){
+    const p = ev.target.closest && ev.target.closest('.award');
+    if (p) awShow(p);
+  });
+  document.addEventListener('mouseout', function(ev){
+    if (ev.target.closest && ev.target.closest('.award')) awHide();
+  });
+  document.addEventListener('focusin', function(ev){
+    const p = ev.target.closest && ev.target.closest('.award');
+    if (p) awShow(p);
+  });
+  document.addEventListener('focusout', function(ev){
+    if (ev.target.closest && ev.target.closest('.award')) awHide();
+  });
+  // fixed positioning goes stale the moment the page scrolls
+  window.addEventListener('scroll', awHide, true);
   // Share button — YOUR cards only, global board only (the card shows your
   // GLOBAL rank; a room page would lie about the denominator).
   function shareBtnHtml(r, withRoom){
@@ -1332,13 +1705,13 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
       const login = r.login || r.name;
       const isMe = ME != null && r.id === ME;
       const you = isMe ? '<span class="youbadge">you</span>' : '';
-      return '<div class="pod p'+r.rank+(isMe?' me':'')+'" style="--i:'+(r.rank-1)+'">'+
+      return '<div class="pod pclk p'+r.rank+(isMe?' me':'')+'" style="--i:'+(r.rank-1)+'" '+
+        'title="view '+esc(login)+'\\u2019s card" onclick="openCard(\\''+esc(login)+'\\','+r.score+')">'+
         '<span class="podcrown">'+crownSvg()+'</span>'+
-        '<a class="podav" href="https://github.com/'+encodeURIComponent(login)+
-          '" target="_blank" rel="noopener">'+avatar(login, r.avatar)+
-          '<span class="medal">'+r.rank+'</span></a>'+
+        '<span class="podav">'+avatar(login, r.avatar)+
+          '<span class="medal">'+r.rank+'</span></span>'+
         '<div class="podnm"><a href="https://github.com/'+encodeURIComponent(login)+
-          '" target="_blank" rel="noopener">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+'</div>'+
+          '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+'</div>'+
         '<div class="podsc">'+fmt(r.score)+'</div>'+
         '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div>'+
         ((r.awards||[]).length ? '<div class="podawards">'+awardsHtml(r)+'</div>' : '')+
@@ -1373,15 +1746,208 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
       const login = r.login || r.name;
       const isMe = ME != null && r.id === ME;
       const you = isMe ? '<span class="youbadge">you</span>' : '';
-      return '<div class="lrow'+(isMe?' me':'')+'" style="--i:'+i+'">'+
+      // Whole row opens the share card; only the username escapes to GitHub.
+      return '<div class="lrow lclk'+(isMe?' me':'')+'" style="--i:'+i+'" '+
+        'title="view '+esc(login)+'\\u2019s card" onclick="openCard(\\''+esc(login)+'\\','+r.score+')">'+
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
         '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
     }).join('');
+  }
+
+  // ---- the weekly 25 -------------------------------------------------------
+  // Global page only. Three states from /api/global's chart object: a quiet
+  // "cooking" strip (tue-sat), the urgent lock strip (sunday), and the Monday
+  // drop. Drop choreography (wash, crown, count-up, row cascade) plays once
+  // per page load; poll repaints get the .quiet class, same pattern as the
+  // board's rise animation.
+  let w25Animated = false, w25Expanded = false;
+
+  function w25WeekLabel(week){
+    const MO = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const a = new Date(week + 'T00:00:00Z');
+    const b = new Date(a.getTime() + 6 * 86400000);
+    const am = MO[a.getUTCMonth()], bm = MO[b.getUTCMonth()];
+    return 'week of ' + am + ' ' + a.getUTCDate() + ' \\u2013 ' +
+      (am === bm ? '' : bm + ' ') + b.getUTCDate();
+  }
+  function w25MvHtml(e){
+    if (e.tag) return '<span class="w25mv"><span class="tagb">'+esc(e.tag)+'</span></span>';
+    const m = e.movement;
+    if (m == null || m === 0) return '<span class="w25mv flat">\\u2014</span>';
+    if (m > 0) return '<span class="w25mv up" title="up '+m+' from last week">\\u25B2 '+m+'</span>';
+    return '<span class="w25mv down" title="down '+(-m)+' from last week">\\u25BC '+(-m)+'</span>';
+  }
+  function w25MvText(e){
+    if (e.tag === 'NEW') return 'new';
+    if (e.tag === 'RE') return 're-entry';
+    const m = e.movement;
+    if (m == null || m === 0) return '\\u2014';
+    return (m > 0 ? '\\u25B2' : '\\u25BC') + Math.abs(m);
+  }
+  function w25RowsHtml(chart){
+    const entries = chart.entries.slice(1, w25Expanded ? 25 : 10);
+    const max = chart.entries[0].score;
+    return entries.map(function(e, i){
+      return '<div class="w25row" style="--d:'+(0.45 + i * 0.05).toFixed(2)+'s">'+
+        '<span class="pos">'+(e.position < 10 ? '0' : '')+e.position+'</span>'+
+        w25MvHtml(e)+
+        avatar(e.login, e.avatar)+
+        '<div class="who"><div class="nm"><a href="https://github.com/'+
+          encodeURIComponent(e.login)+'" target="_blank" rel="noopener">'+esc(e.login)+'</a></div>'+
+        '<div class="meta">'+fmt(e.prompts)+' prompts \\u00B7 '+fmt(e.edits)+' edits</div></div>'+
+        '<span class="w25meter">'+meterHtml(e.score, max)+'</span>'+
+        '<span class="hist">peak #'+e.peak+' \\u00B7 '+e.weeks+' wk'+(e.weeks > 1 ? 's' : '')+'</span>'+
+        '<span class="sc">'+fmt(e.score)+'</span>'+
+      '</div>';
+    }).join('');
+  }
+  function w25Toggle(){
+    const chart = GLOBAL && GLOBAL.chart;
+    if (!chart || !(chart.entries || []).length) return;
+    w25Expanded = !w25Expanded;
+    const rows = document.getElementById('w25rows');
+    const btn = document.getElementById('w25more');
+    // Expansion re-renders inside the existing card — no full repaint, no
+    // replayed choreography (rows come back quiet via the parent class).
+    if (rows) rows.innerHTML = w25RowsHtml(chart);
+    if (btn) btn.textContent = w25Expanded ? 'show top 10' : 'see all ' + chart.entries.length;
+  }
+  // Live countdown to the next drop (Monday 00:00 UTC). One interval per page;
+  // it only touches the clock's text node, so it never fights paint().
+  function w25NextDropMs(){
+    const now = new Date();
+    const days = (8 - now.getUTCDay()) % 7 || 7; // next Monday, never today
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days) - now.getTime();
+  }
+  function w25Clock(){
+    let s = Math.max(0, Math.floor(w25NextDropMs() / 1000));
+    const d = Math.floor(s / 86400); s -= d * 86400;
+    const p = function(n){ return (n < 10 ? '0' : '') + n; };
+    const hms = p(Math.floor(s / 3600))+':'+p(Math.floor(s / 60) % 60)+':'+p(s % 60);
+    return d > 0 ? d + 'd ' + hms : hms;
+  }
+  let w25Timer = null;
+  function w25TickStart(){
+    if (w25Timer) return;
+    w25Timer = setInterval(function(){
+      const el = document.getElementById('w25cd');
+      if (el) el.textContent = w25Clock();
+    }, 1000);
+  }
+  function w25CdHtml(lab){
+    return '<span class="w25cdw"><span class="lab">'+lab+'</span>'+
+      '<span class="cd" id="w25cd">'+w25Clock()+'</span></span>';
+  }
+  function w25LockWash(){
+    return '<svg class="wash" viewBox="0 0 800 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
+      '<defs><filter id="w25lf" x="-20%" y="-20%" width="140%" height="140%">'+
+        '<feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="4" result="n"/>'+
+        '<feDisplacementMap in="SourceGraphic" in2="n" scale="80"/>'+
+        '<feGaussianBlur stdDeviation="8"/></filter>'+
+      '<linearGradient id="w25lg" x1="0" y1="0" x2="1" y2="1">'+
+        '<stop class="wg1" offset="0" stop-color="#E89A72"/>'+
+        '<stop class="wg2" offset="1" stop-color="#C05F33"/></linearGradient></defs>'+
+      '<rect width="800" height="160" fill="url(#w25lg)"/>'+
+      '<g filter="url(#w25lf)">'+
+        '<ellipse class="wb wv1" cx="200" cy="40" rx="240" ry="55" fill="#F9F2E4" opacity=".5"/>'+
+        '<ellipse class="wb wb2 wv2" cx="580" cy="120" rx="280" ry="60" fill="#A94E28" opacity=".75"/>'+
+        '<ellipse class="wb wb3 wv3" cx="430" cy="30" rx="180" ry="45" fill="#FFF9EC" opacity=".35"/>'+
+      '</g></svg>';
+  }
+  // force=true (the /chart page): always render the latest chart, whatever
+  // the day-of-week state — the homepage keeps its Mon/Tue-only drop moment.
+  function w25Html(chart, force){
+    if (!chart) return '';
+    const n = (chart.entries || []).length;
+    if (!force && chart.state === 'locks_tonight')
+      return '<div class="w25lock">'+w25LockWash()+'<div class="in">'+
+        '<span><b>the weekly 25 locks tonight.</b> '+
+        '<span class="sub">whatever the chart says at midnight, it says all week.</span></span>'+
+        w25CdHtml('locks in')+'</div></div>';
+    if (!force && chart.state !== 'dropped')
+      return '<div class="w25tease"><span class="sq"></span>'+
+        '<span class="tx"><b>the weekly 25</b> is cooking \\u00B7 '+
+        '<span class="sub">every prompt this week is a chart position. top 25 make it.</span></span>'+
+        w25CdHtml('drops in')+'</div>';
+    if (!n)
+      return '<div class="w25tease"><span class="sq"></span>'+
+        '<span class="tx"><b>the weekly 25</b> \\u00B7 '+
+        '<span class="sub">quiet week. nobody charted. this one\\u2019s wide open.</span></span>'+
+        w25CdHtml('next drop')+'</div>';
+
+    const e1 = chart.entries[0];
+    const counts = n + ' charted' +
+      (chart.debuts ? ' \\u00B7 ' + chart.debuts + ' debut' + (chart.debuts > 1 ? 's' : '') : '') +
+      (chart.reentries ? ' \\u00B7 ' + chart.reentries + ' re-entr' + (chart.reentries > 1 ? 'ies' : 'y') : '');
+    return '<section class="w25'+(w25Animated ? ' quiet' : '')+'"><div class="w25card">'+
+      '<div class="w25wash"><svg viewBox="0 0 800 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
+        '<defs><filter id="w25f" x="-20%" y="-20%" width="140%" height="140%">'+
+          '<feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="7" result="n"/>'+
+          '<feDisplacementMap in="SourceGraphic" in2="n" scale="90"/>'+
+          '<feGaussianBlur stdDeviation="9"/></filter>'+
+        '<linearGradient id="w25g" x1="0" y1="0" x2="1" y2="1">'+
+          '<stop class="wg1" offset="0" stop-color="#E89A72"/>'+
+          '<stop class="wg2" offset="1" stop-color="#C05F33"/></linearGradient></defs>'+
+        '<rect width="800" height="220" fill="url(#w25g)"/>'+
+        '<g filter="url(#w25f)">'+
+          '<ellipse class="wb wv1" cx="180" cy="60" rx="230" ry="70" fill="#F9F2E4" opacity=".5"/>'+
+          '<ellipse class="wb wb2 wv2" cx="560" cy="160" rx="280" ry="80" fill="#A94E28" opacity=".75"/>'+
+          '<ellipse class="wb wb3 wv3" cx="430" cy="40" rx="180" ry="55" fill="#FFF9EC" opacity=".35"/>'+
+        '</g></svg>'+
+        '<div class="w25head"><span class="k">the drop</span>'+
+          '<h2>the weekly 25</h2>'+
+          '<span class="d">'+w25WeekLabel(chart.week)+
+            ' \\u00B7 the 25 most cracked claude coders alive</span></div>'+
+      '</div>'+
+      '<div class="w25no1">'+
+        '<span class="avwrap"><span class="w25crown">'+crownSvg()+'</span>'+
+          avatar(e1.login, e1.avatar)+'</span>'+
+        '<div class="who"><div class="k">this week\\u2019s most cracked</div>'+
+          '<div class="nm"><a href="https://github.com/'+encodeURIComponent(e1.login)+
+            '" target="_blank" rel="noopener">'+esc(e1.login)+'</a></div>'+
+          '<div class="meta">'+fmt(e1.prompts)+' prompts \\u00B7 '+fmt(e1.edits)+' edits \\u00B7 '+
+            e1.weeks+' wk'+(e1.weeks > 1 ? 's' : '')+' on chart \\u00B7 peak #'+e1.peak+'</div></div>'+
+        '<div class="scr"><b class="glint" id="w25score" data-n="'+e1.score+'">'+
+          (w25Animated ? fmt(e1.score) : '0')+'</b>'+
+          '<span>#1 \\u00B7 '+w25MvText(e1)+'</span></div>'+
+      '</div>'+
+      '<div id="w25rows">'+w25RowsHtml(chart)+'</div>'+
+      '<div class="w25foot"><span>'+counts+' \\u00B7 new chart every monday</span>'+
+        '<button onclick="w25CopyLink(this)" style="margin-left:auto">share the chart</button>'+
+        (n > 10 ? '<button id="w25more" onclick="w25Toggle()" style="margin-left:8px">'+
+          (w25Expanded ? 'show top 10' : 'see all ' + n)+'</button>' : '')+
+      '</div>'+
+    '</div></section>';
+  }
+  async function w25CopyLink(btn){
+    try {
+      await navigator.clipboard.writeText(location.origin + '/chart');
+      btn.textContent = 'link copied. go flex';
+      setTimeout(function(){ btn.textContent = 'share the chart'; }, 1800);
+    } catch (e) { btn.textContent = location.origin + '/chart'; }
+  }
+  // Count the #1 score up from 0 on the first drop render of this page load.
+  function w25AfterPaint(){
+    w25TickStart(); // live countdown in the tease/lock strips
+    const el = document.getElementById('w25score');
+    if (!el || w25Animated){ w25Animated = w25Animated || !!el; return; }
+    w25Animated = true;
+    const target = Number(el.getAttribute('data-n')) || 0;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches){
+      el.textContent = fmt(target); return;
+    }
+    const t0 = performance.now(), dur = 1100, delay = 500;
+    (function tick(t){
+      const p = Math.min(1, Math.max(0, (t - t0 - delay) / dur));
+      const ease = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(Math.round(target * ease));
+      if (p < 1) requestAnimationFrame(tick);
+    })(t0);
   }
 
   // ---- right-rail cards ----------------------------------------------------
@@ -1515,7 +2081,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     } catch { /* storage unavailable — sidebar stays static */ }
   }
   function renderSide(){
-    document.getElementById('navHome').className = 'nav' + (CODE ? '' : ' on');
+    document.getElementById('navHome').className = 'nav' + (CODE || CHARTPG ? '' : ' on');
+    document.getElementById('navChart').className = 'nav' + (CHARTPG ? ' on' : '');
     if (!GLOBAL){ // first fetch in flight — ghost room pills, not an empty list
       document.getElementById('roomCnt').textContent = '';
       document.getElementById('navRooms').innerHTML = [70,54,84].map(function(w){
@@ -1541,7 +2108,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
         return '<a class="nav" href="/r/'+encodeURIComponent(known[r.name])+'">'+dot+esc(r.name)+'</a>';
       return '<div class="nav static" title="joining needs a code from a member">'+dot+esc(r.name)+'</div>';
     }).join('');
-    document.getElementById('navHome').className = 'nav' + (CODE ? '' : ' on');
+    document.getElementById('navHome').className = 'nav' + (CODE || CHARTPG ? '' : ' on');
   }
   function renderTop(){
     const crumb = document.getElementById('crumb');
@@ -1551,6 +2118,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
     // the invite card's deliberate frosted-glass reveal only.
     else if (CODE && ROOM) crumb.innerHTML = esc(ROOM.room.name);
     else if (CODE) crumb.textContent = 'Room';
+    else if (CHARTPG) crumb.textContent = 'the weekly 25';
     else crumb.textContent = 'Global';
     document.getElementById('segAll').className = mode==='allTime' ? 'on' : '';
     document.getElementById('segToday').className = mode==='today' ? 'on' : '';
@@ -1728,7 +2296,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
       return;
     }
     if (!data){ // first fetch still in flight — show skeletons, not a blank page
-      content.innerHTML = (CODE ? '' : heroHtml()) + skeletonHtml();
+      content.innerHTML = (CODE || CHARTPG ? '' : heroHtml()) + skeletonHtml();
       return;
     }
     const rows = (mode === 'today' ? data.today : data.allTime) || [];
@@ -1742,7 +2310,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
 
     const chartBlock = chartHtml(data.series); // sets DIMS.weeks for the header
     content.innerHTML =
-      (CODE ? '' : heroHtml())+
+      (CODE || CHARTPG ? '' : heroHtml())+
+      (CODE ? '' : w25Html(GLOBAL && GLOBAL.chart, CHARTPG))+
       '<div class="grid">'+
       // Entrance animations play once; poll repaints swap in place ("quiet")
       // so live score updates don't re-run the whole rise choreography.
@@ -1752,14 +2321,15 @@ export function dashboardHtml(code: string | null, og?: OgMeta): string {
         boardHtml(rows, !CODE)+
       '</section>'+
       '<section class="card">'+
-        '<div class="cardhead"><h3>Activity</h3><span class="sub">last '+
-          DIMS.weeks+' weeks &middot; UTC days</span></div>'+
+        '<div class="cardhead"><h3>Activity</h3><span class="sub">'+
+          DIMS.span+' &middot; UTC days</span></div>'+
         '<div class="chartwrap">'+chartBlock+'</div>'+
         stripHtml(data.series, totals)+
       '</section>'+
       '<div class="rail">'+(CODE ? inviteCard()+raceCard(data.today||[]) : onboardCard()+howCard())+'</div>'+
       '</div>';
     bindChart();
+    if (!CODE) w25AfterPaint();
     boardAnimated = true;
     // Arriving via an invite link? Prefill the join code inside the details.
     if (!CODE){

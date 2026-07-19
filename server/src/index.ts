@@ -663,7 +663,7 @@ app.get("/api/global", async (c) => {
     "SELECT name FROM rooms ORDER BY created_at ASC").all()).results;
 
   const payload = {
-    stats, roomsList, series: board.series,
+    stats, roomsList, series: board.series, chart,
     allTime: withRooms(board.allTime), today: withRooms(board.today),
   };
   globalCache = { at: Date.now(), body: payload };
@@ -833,6 +833,98 @@ app.get("/u/:login", async (c) => {
     image: `${origin}/og/${encodeURIComponent(data.row.login)}.png?v=${data.row.score}`,
     url: `${origin}/u/${encodeURIComponent(data.row.login)}`,
   }));
+});
+
+// ---- chart share cards -----------------------------------------------------
+// Same architecture as the personal card: D1 data on the Worker, pixels on
+// Vercel, KV as the global cache. A finalized chart week is immutable, so the
+// KV keys never need score-busting — the week id alone is the version.
+const OG_CHART_RENDERER = "https://og-service-nu.vercel.app/api/chart";
+
+function chartWeekLabel(week: string): string {
+  const MO = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  const a = new Date(week + "T00:00:00Z");
+  const b = new Date(a.getTime() + 6 * 86400000);
+  const am = MO[a.getUTCMonth()], bm = MO[b.getUTCMonth()];
+  return "week of " + am + " " + a.getUTCDate() + " – " +
+    (am === bm ? "" : bm + " ") + b.getUTCDate();
+}
+
+async function chartOgRender(payload: unknown): Promise<ArrayBuffer | null> {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const d64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const res = await fetch(OG_CHART_RENDERER + "?d=" + d64);
+  if (!res.ok) return null;
+  return await res.arrayBuffer();
+}
+async function chartPngCached(env: Bindings, key: string, payload: unknown,
+  ctx: { waitUntil(p: Promise<unknown>): void }): Promise<ArrayBuffer | null> {
+  const hit = await env.OG_KV.get(key, "arrayBuffer");
+  if (hit) return hit;
+  const png = await chartOgRender(payload);
+  if (png) ctx.waitUntil(env.OG_KV.put(key, png, { expirationTtl: 8 * 86400 }));
+  return png;
+}
+const chartPng = (c: any, png: ArrayBuffer | null) =>
+  png
+    ? c.body(png, 200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=300" })
+    : c.text("render unavailable", 503);
+
+// The Monday poster: most-cracked spotlight + rows 2-10 with movement.
+app.get("/og/chart.png", async (c) => {
+  const chart = await chartPayload(c.env.DB).catch(() => null);
+  if (!chart || !chart.entries.length) return c.notFound();
+  track(c, "og_card", { props: { login: "@chart" } });
+  const payload = {
+    kind: "poster", weekLabel: chartWeekLabel(chart.week),
+    charted: chart.entries.length, debuts: chart.debuts,
+    entries: chart.entries.slice(0, 10),
+  };
+  return chartPng(c, await chartPngCached(c.env, "og:chart:" + chart.week, payload, c.executionCtx));
+});
+
+// One user's chart performance ("debuted at #7").
+app.get("/og/chart/:login", async (c) => {
+  const login = c.req.param("login").replace(/\.png$/i, "");
+  if (!LOGIN_RE.test(login)) return c.notFound();
+  const chart = await chartPayload(c.env.DB).catch(() => null);
+  const entry = chart?.entries.find((e) => e.login.toLowerCase() === login.toLowerCase());
+  if (!chart || !entry) return c.notFound();
+  track(c, "og_card", { props: { login: entry.login } });
+  const payload = {
+    kind: "me", weekLabel: chartWeekLabel(chart.week),
+    charted: chart.entries.length, entry,
+  };
+  return chartPng(c, await chartPngCached(
+    c.env, "og:chartme:" + chart.week + ":" + entry.login.toLowerCase(), payload, c.executionCtx));
+});
+
+// The chart's share page: the dashboard plus poster meta, so pasting /chart
+// anywhere unfurls into this week's drop.
+app.get("/chart", async (c) => {
+  const chart = await chartPayload(c.env.DB).catch(() => null);
+  c.header("Content-Security-Policy", CSP);
+  track(c, "page_view", { props: { page: "chart" } });
+  if (!chart || !chart.entries.length) return c.html(dashboardHtml(null, undefined, "chart"));
+  c.executionCtx.waitUntil(
+    chartPngCached(c.env, "og:chart:" + chart.week, {
+      kind: "poster", weekLabel: chartWeekLabel(chart.week),
+      charted: chart.entries.length, debuts: chart.debuts,
+      entries: chart.entries.slice(0, 10),
+    }, c.executionCtx).then(() => {}));
+  const origin = new URL(c.req.url).origin;
+  const e1 = chart.entries[0];
+  return c.html(dashboardHtml(null, {
+    login: e1.login,
+    title: `the weekly 25 · ${chartWeekLabel(chart.week)}`,
+    desc: `${e1.login} is this week's most cracked with ${e1.score} pts. ` +
+      `${chart.entries.length} charted on the global Claude Code leaderboard.`,
+    image: `${origin}/og/chart.png?v=${chart.week}`,
+    url: `${origin}/chart`,
+  }, "chart"));
 });
 
 // ---- README badge ----------------------------------------------------------
