@@ -869,10 +869,17 @@ async function ogData(db: D1Database, login: string): Promise<OgData | null> {
   const heat = await db.prepare(
     "SELECT day, COUNT(*) AS n FROM events WHERE user_id = ? AND day >= ? AND capped = 0 GROUP BY day")
     .bind(row.id, since).all();
+  // "day one" is a record, not a held badge — but it's the flagship receipt,
+  // so it leads the card's pill row (renderer draws pills generically).
+  const d1 = ((row.records || []) as { key: string; n: number }[]).find((x) => x.key === "dayone");
+  const pills = [
+    ...(d1 ? [{ key: "dayone", label: d1.n >= 2 ? `day one ×${d1.n}` : "day one" }] : []),
+    ...(row.awards || []),
+  ];
   return {
     row: { rank: row.rank, login: row.login, avatar: row.avatar,
            prompts: row.prompts, edits: row.edits, score: row.score,
-           awards: row.awards || [] },
+           awards: pills },
     total: rows.length,
     maxScore: rows[0]?.score || 1,
     heat: heat.results as unknown as { day: string; n: number }[],
@@ -884,7 +891,8 @@ async function ogData(db: D1Database, login: string): Promise<OgData | null> {
 // card, then a crawler hitting any datacenter gets bytes in ~50ms instead of
 // a multi-second cold render — X's image fetcher gives up on slow origins.
 function ogKey(d: OgData): string {
-  return "og:" + d.row.login.toLowerCase() + ":" + d.row.score + ":" + d.row.rank + ":" + d.total;
+  return "og:" + d.row.login.toLowerCase() + ":" + d.row.score + ":" + d.row.rank + ":" + d.total +
+    ":" + d.row.awards.map((a) => a.label).join("+");
 }
 async function ogRender(d: OgData): Promise<ArrayBuffer | null> {
   // base64url the payload for the renderer (chunked — no giant spread)
