@@ -194,7 +194,12 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   .yaxis { display: flex; flex-direction: column; justify-content: space-between;
            font: 10.5px/1 var(--mono); color: var(--faint); text-align: right;
            padding: 0 0 20px; flex: none; width: 30px; }
-  .chartscroll { overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
+  /* contain:inline-size stops the year grid's intrinsic 700px+ width from
+     propagating up into the CSS grid track — without it the Activity card
+     widened EVERY card in the column (leaderboard podium shoved offscreen
+     on phones) instead of scrolling. */
+  .chartscroll { overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none;
+                 contain: inline-size; }
   .chartscroll::-webkit-scrollbar { display: none; }
   /* Activity heatmap — GitHub's contribution graph in Claude coral: columns
      are weeks, rows are weekdays, cell shade = that day's intensity. */
@@ -944,6 +949,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     .topbar, .content { padding-left: 16px; padding-right: 16px; }
     .grid { grid-template-columns: 1fr; }
   }
+  /* grid items default to min-width:auto — one card with wide content would
+     stretch the shared track and drag every other card with it */
+  .grid > * { min-width: 0; }
   /* ---- phones: the three-across podium starves each column, so restage it —
      champion becomes a full-width hero, 2nd + 3rd share the row beneath, and
      the pedestal blocks go (the rank medals already carry that info). List
