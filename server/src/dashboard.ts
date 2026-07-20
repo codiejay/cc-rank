@@ -401,7 +401,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
            border-radius: 999px; padding: 3px 8px; transition: background .15s, color .15s; }
   .shbtn:hover { background: var(--accent); color: #fff; }
   .shbtn svg { width: 10px; height: 10px; display: block; }
-  .shmenu { position: absolute; z-index: 60; width: 252px; background: var(--card);
+  .shmenu { position: absolute; z-index: 210; width: 252px; background: var(--card);
             border-radius: 14px; box-shadow: 0 12px 40px -8px rgba(0,0,0,.35), 0 0 0 1px var(--line2);
             padding: 10px; animation: shpop .18s cubic-bezier(.22,1,.36,1) both; }
   @keyframes shpop { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -427,43 +427,112 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   /* ---- profile card lightbox ----
      Click any avatar → the user's share card opens as an image over a
      blue-tinted frosted glass. Card stays crisp; the page behind blurs. */
+  /* Warm ink scrim (the espresso base of --shadow), not the old blue — the
+     modal lives in ccrank's greige/coral world, not a stock frosted glass. */
   .cardmodal { position: fixed; inset: 0; z-index: 200; display: flex;
                align-items: center; justify-content: center; padding: 24px;
-               background: rgba(20,42,84,.34);
-               backdrop-filter: blur(16px) saturate(1.2);
-               -webkit-backdrop-filter: blur(16px) saturate(1.2);
+               background: rgba(35,28,15,.30);
+               backdrop-filter: blur(16px) saturate(1.15);
+               -webkit-backdrop-filter: blur(16px) saturate(1.15);
                opacity: 0; transition: opacity .22s ease; }
-  :root[data-theme="dark"] .cardmodal { background: rgba(10,24,54,.52); }
+  :root[data-theme="dark"] .cardmodal { background: rgba(12,9,5,.60); }
   .cardmodal.on { opacity: 1; }
-  .cardwrap { position: relative; width: min(660px, 92vw);
+  .cardwrap { position: relative; width: min(600px, 92vw);
               display: flex; flex-direction: column; align-items: center; gap: 13px;
               transform: scale(.955) translateY(8px);
               transition: transform .26s cubic-bezier(.2,.85,.28,1); }
   .cardmodal.on .cardwrap { transform: none; }
-  .cardframe { position: relative; width: 100%; aspect-ratio: 1200/630;
-               border-radius: 16px; overflow: hidden; background: var(--skbg);
-               box-shadow: 0 34px 90px -26px rgba(0,0,0,.62),
-                           0 0 0 1px rgba(255,255,255,.14),
-                           inset 0 0 0 1px rgba(255,255,255,.05); }
-  .cardframe::before { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-                       background: linear-gradient(90deg, transparent, var(--skhi), transparent);
-                       animation: sksweep 1.8s ease-in-out infinite; }
-  .cardframe.ready::before, .cardframe.failed::before { animation: none; display: none; }
-  .cardframe img { position: absolute; inset: 0; width: 100%; height: 100%;
-                   object-fit: cover; display: block; opacity: 0; transition: opacity .35s ease-out; }
-  .cardframe.ready img { opacity: 1; }
-  .cardframe .cardfail { position: absolute; inset: 0; display: none; align-items: center;
-                         justify-content: center; text-align: center; padding: 0 20px;
-                         font: 600 12px/1.6 var(--mono); color: var(--muted); }
-  .cardframe.failed .cardfail { display: flex; }
-  .cardcap { display: flex; align-items: center; gap: 9px; max-width: 100%;
-             font: 600 12.5px/1 var(--sans); color: rgba(255,255,255,.9);
-             text-shadow: 0 1px 3px rgba(0,0,0,.4); }
-  .cardcap b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cardcap .dot { color: rgba(255,255,255,.5); }
-  .cardcap a { color: rgba(255,255,255,.72); text-decoration: none; display: inline-flex;
-               align-items: center; gap: 4px; }
-  .cardcap a:hover { color: #fff; }
+  /* Native profile card — rendered instantly from board data the client
+     already holds, replacing the multi-second OG PNG the modal used to embed.
+     Theme-aware and responsive (the PNG could be neither). --mc is the medal
+     accent, set per rank; the coral --accent stays the score/tick color. */
+  .pcard { position: relative; width: 100%; border-radius: 20px; overflow: hidden;
+           background: var(--card); color: var(--ink); --mc: var(--accent);
+           border: 1px solid var(--line2);
+           box-shadow: 0 34px 90px -26px rgba(0,0,0,.55),
+                       inset 0 1px 0 rgba(255,255,255,.04); }
+  .pcard.r1 { --mc: var(--gold); } .pcard.r2 { --mc: var(--silver); }
+  .pcard.r3 { --mc: var(--bronze); }
+  .pcard::before { content: ''; position: absolute; top: 0; right: 0; left: 0; height: 190px;
+                   background: radial-gradient(120% 150% at 88% -30%,
+                     color-mix(in srgb, var(--mc) 22%, transparent) 0%, transparent 60%);
+                   pointer-events: none; }
+  .pc-in { position: relative; padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 16px; }
+  .pc-top { display: flex; align-items: center; gap: 10px; }
+  .pc-brand { display: flex; align-items: center; gap: 8px; font: 800 15px/1 var(--sans);
+              letter-spacing: -.01em; color: var(--ink); }
+  .pc-brand svg { width: 20px; height: 20px; display: block; }
+  .pc-eyebrow { margin-left: auto; font: 700 9.5px/1 var(--mono); letter-spacing: .16em;
+                text-transform: uppercase; color: var(--muted); }
+  .pc-hero { display: flex; align-items: center; gap: 18px; }
+  .pc-idcol { display: flex; align-items: center; gap: 16px; flex: 1 1 auto; min-width: 0; }
+  .pc-av { position: relative; width: 92px; height: 92px; flex: none; }
+  .pc-av .ava { width: 92px; height: 92px; border-radius: 50%; font-size: 34px;
+                box-shadow: 0 0 0 3px var(--mc), 0 8px 20px -8px rgba(0,0,0,.5); }
+  .pc-crown { position: absolute; top: -20px; left: 50%; width: 38px; height: 29px;
+              transform: translateX(-50%) rotate(-5deg); color: var(--mc); }
+  .pc-idtext { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .pc-name { display: flex; align-items: center; gap: 7px; font: 800 26px/1 var(--sans);
+             letter-spacing: -.02em; color: var(--ink);
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pc-name.long { font-size: 21px; } .pc-name.xlong { font-size: 17px; }
+  .pc-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pc-score { display: flex; align-items: baseline; gap: 9px; }
+  .pc-score b { font: 800 40px/1 var(--sans); letter-spacing: -.03em; color: var(--ink);
+                font-variant-numeric: tabular-nums; }
+  .pc-score span { font: 700 12px/1 var(--mono); letter-spacing: .12em; color: var(--muted); }
+  .pc-ticks { display: flex; gap: 4px; }
+  .pc-ticks i { width: 7px; height: 15px; border-radius: 1.5px; background: var(--track); }
+  .pc-ticks i.on { background: var(--accent); }
+  .pc-rankcol { flex: none; display: flex; flex-direction: column; align-items: center; gap: 3px;
+                text-align: center; padding-left: 6px; }
+  .pc-rk { display: flex; align-items: flex-start; color: var(--mc);
+           font: 800 62px/.85 var(--sans); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .pc-rk sup { font-size: .48em; font-weight: 800; margin-top: .12em; }
+  .pc-of { font: 700 9px/1 var(--mono); letter-spacing: .14em; color: var(--muted);
+           text-transform: uppercase; }
+  .pc-medal { margin-top: 5px; font: 700 9px/1 var(--mono); letter-spacing: .12em;
+              text-transform: uppercase; color: var(--onink); background: var(--mc);
+              border-radius: 999px; padding: 5px 11px; }
+  .pcard:not(.r1):not(.r2):not(.r3) .pc-medal { color: #fff; }
+  .pc-panel { background: var(--bg); border: 1px solid var(--line); border-radius: 14px;
+              padding: 14px 16px 13px; display: flex; flex-direction: column; gap: 11px; }
+  .pc-panelhd { display: flex; align-items: baseline; gap: 12px; }
+  .pc-panelhd > span { font: 700 9.5px/1 var(--mono); letter-spacing: .12em;
+                       text-transform: uppercase; color: var(--muted); }
+  .pc-stats { margin-left: auto; display: flex; gap: 18px; }
+  .pc-stat { display: flex; align-items: baseline; gap: 5px; }
+  .pc-stat b { font: 800 14px/1 var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .pc-stat span { font: 700 8.5px/1 var(--mono); letter-spacing: .1em;
+                  text-transform: uppercase; color: var(--muted); }
+  .pc-heat { display: flex; flex-direction: column; gap: 3px; }
+  .pc-heat .hrow { display: flex; gap: 3px; }
+  .pc-heat .hrow i { flex: 1 1 0; aspect-ratio: 1; border-radius: 2.5px; background: var(--h0);
+                     min-width: 0; }
+  .pc-heat.load .hrow i { animation: pcpulse 1.4s ease-in-out infinite; }
+  @keyframes pcpulse { 0%,100% { opacity: .5; } 50% { opacity: .85; } }
+  @media (prefers-reduced-motion: reduce) { .pc-heat.load .hrow i { animation: none; } }
+  .pc-foot { display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+             font: 600 12px/1.3 var(--sans); color: var(--muted); }
+  .pc-foot .tag { font: 700 12px/1 var(--mono); color: var(--accent); }
+  .pc-foot .dot { color: var(--faint); }
+  .pc-foot a { margin-left: auto; color: var(--ink3); text-decoration: none;
+               display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+  .pc-foot a:hover { color: var(--ink); }
+  .pc-foot .pc-share { margin-left: auto; }
+  .pc-foot a.pc-github { margin-left: 0; }
+  .pc-share { border: 1px solid var(--line2); background: var(--card); color: var(--ink);
+              border-radius: 9px; padding: 7px 12px; cursor: pointer; font: 700 11.5px/1 var(--sans);
+              display: inline-flex; align-items: center; gap: 6px; }
+  .pc-share:hover { border-color: var(--mc); }
+  .pc-share svg { width: 13px; height: 13px; display: block; }
+  @media (max-width: 560px) {
+    .pc-hero { flex-direction: column; align-items: stretch; gap: 14px; }
+    .pc-rankcol { flex-direction: row; justify-content: center; align-items: center; gap: 12px;
+                  padding: 10px 0 0; border-top: 1px solid var(--line); }
+    .pc-rk { font-size: 44px; } .pc-medal { margin-top: 0; }
+    .pc-stats { gap: 14px; }
+  }
   .cardx { position: fixed; top: 18px; right: 18px; width: 40px; height: 40px; cursor: pointer;
            display: grid; place-items: center; border: 0; border-radius: 50%;
            background: rgba(255,255,255,.14); color: #fff;
@@ -1260,9 +1329,16 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       '</span>';
   }
   // ---- profile card lightbox -----------------------------------------------
-  // The same PNG the share menu previews (/og/<login>.png), shown big over a
-  // blue frosted-glass scrim. Backdrop click or Esc closes.
+  // A NATIVE, theme-aware card rendered instantly from the board data the
+  // client already holds (rank, score, prompts, edits, awards, avatar) over a
+  // frosted-glass scrim. It used to embed /og/<login>.png — the same PNG the
+  // crawler-facing share flow renders — which meant a human clicking a row
+  // waited multiple seconds on a Vercel cold render. The share menu still uses
+  // that PNG (X needs a real image); the modal doesn't. The one field not in
+  // the payload — the 13-week heatmap — hydrates from /api/heat a beat later.
+  // Backdrop click or Esc closes.
   let cardEl = null;
+  let cardSeq = 0;
   function cardKey(ev){ if (ev.key === 'Escape') closeCard(); }
   function closeCard(){
     if (!cardEl) return;
@@ -1292,9 +1368,99 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         b.ico+esc(b.lb)+xN(it.n)+'</span>';
     }).join('')+'</div>';
   }
+  // The medal accent + label for a rank, mirroring the OG card's tiers.
+  const CARD_MEDALS = { 1: 'CHAMPION', 2: 'SILVER', 3: 'BRONZE' };
+  // Held-award pills for the hero (top 3 + overflow), same gold pill as the
+  // board. Native title tips instead of the delegated speech bubble — the
+  // bubble anchors to a board row/podium that isn't present in the modal.
+  function pcPills(r){
+    const aw = (r.awards || []).filter(function(a){ return BADGES[a.key]; });
+    if (!aw.length) return '';
+    const shown = aw.slice(0, 3), extra = aw.length - shown.length;
+    return '<div class="pc-pills">'+shown.map(function(a){
+      const b = BADGES[a.key];
+      return '<span class="award" title="'+esc(b.tip)+'">'+b.ico+esc(a.label)+'</span>';
+    }).join('')+(extra > 0
+      ? '<span class="award" style="color:var(--muted);background:transparent;'+
+        'border-color:var(--line2)">+'+extra+'</span>'
+      : '')+'</div>';
+  }
+  // 24-tick score meter, filled proportional to the board leader — identical
+  // math to the OG renderer so the modal and the shared PNG agree.
+  function pcTicks(score, maxScore){
+    const N = 24, filled = Math.max(score > 0 ? 1 : 0,
+      Math.round(score / Math.max(1, maxScore) * N));
+    let s = '';
+    for (var i = 0; i < N; i++) s += '<i'+(i < filled ? ' class="on"' : '')+'></i>';
+    return '<div class="pc-ticks">'+s+'</div>';
+  }
+  // 7 rows (Sun-first) x 13 week columns of intensity levels, ending today.
+  // Quartile buckets of the non-zero days, matching card.js's heatCells so the
+  // instant modal and the rasterized share card draw the same graph. -1 = a
+  // future cell in this week (drawn transparent).
+  function pcHeatCells(heat){
+    const vals = heat.map(function(h){ return h.n; }).filter(function(n){ return n > 0; })
+      .sort(function(a, b){ return a - b; });
+    const q = [vals[Math.floor(vals.length * 0.25)] || 1,
+               vals[Math.floor(vals.length * 0.5)] || 2,
+               vals[Math.floor(vals.length * 0.75)] || 3];
+    const lv = {};
+    heat.forEach(function(h){
+      lv[h.day] = h.n <= 0 ? 0 : h.n <= q[0] ? 1 : h.n <= q[1] ? 2 : h.n <= q[2] ? 3 : 4; });
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const lastSunday = today - new Date(today).getUTCDay() * 86400000;
+    const rows = [];
+    for (var d = 0; d < 7; d++){
+      const row = [];
+      for (var w = 12; w >= 0; w--){
+        const t = lastSunday - w * 7 * 86400000 + d * 86400000;
+        if (t > today){ row.push(-1); continue; }
+        const iso = new Date(t).toISOString().slice(0, 10);
+        row.push(lv[iso] == null ? 0 : lv[iso]);
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+  const HCOL = ['var(--h0)','var(--h1)','var(--h2)','var(--h3)','var(--h4)'];
+  function pcHeatHtml(rows){
+    return rows.map(function(row){
+      return '<div class="hrow">'+row.map(function(l){
+        return '<i style="background:'+(l < 0 ? 'transparent' : HCOL[l])+'"></i>';
+      }).join('')+'</div>';
+    }).join('');
+  }
+  // Placeholder grid while /api/heat is in flight — same 7x13 shape, pulsing.
+  function pcHeatSkeleton(){
+    let s = '';
+    for (var d = 0; d < 7; d++){
+      s += '<div class="hrow">';
+      for (var w = 0; w < 13; w++) s += '<i></i>';
+      s += '</div>';
+    }
+    return s;
+  }
   function openCard(login, score){
     if (cardEl) closeCard();
-    const img = location.origin+'/og/'+encodeURIComponent(login)+'.png'+(score!=null?('?v='+score):'');
+    const seq = ++cardSeq;
+    const r = rowOf(login) || { login: login, score: score, rank: 0,
+                                prompts: 0, edits: 0, awards: [] };
+    const total = (GLOBAL && GLOBAL.stats && GLOBAL.stats.players) ||
+                  (GLOBAL && (GLOBAL.allTime || []).length) || r.rank || 0;
+    const maxScore = (GLOBAL && GLOBAL.allTime && GLOBAL.allTime[0] &&
+                      GLOBAL.allTime[0].score) || r.score || 1;
+    const rank = r.rank || 0;
+    const rkClass = rank >= 1 && rank <= 3 ? ' r'+rank : '';
+    const medal = CARD_MEDALS[rank] || 'ON THE BOARD';
+    const nmClass = login.length > 17 ? ' xlong' : login.length > 12 ? ' long' : '';
+    const LOGO = '<svg viewBox="106 106 300 300" aria-hidden="true">'+
+      '<g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/>'+
+      '<rect x="118" y="218" width="76" height="76" rx="19"/>'+
+      '<rect x="318" y="318" width="76" height="76" rx="19"/></g>'+
+      '<g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/>'+
+      '<rect x="218" y="218" width="76" height="76" rx="19"/>'+
+      '<rect x="218" y="118" width="76" height="76" rx="19"/></g></svg>';
     const m = document.createElement('div');
     m.className = 'cardmodal';
     m.setAttribute('role', 'dialog');
@@ -1305,15 +1471,51 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '+
         'stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>'+
       '<div class="cardwrap">'+
-        '<div class="cardframe">'+
-          '<img src="'+esc(img)+'" alt="'+esc(login)+' on ccrank" '+
-            'onload="this.closest(\\'.cardframe\\').classList.add(\\'ready\\')" '+
-            'onerror="this.closest(\\'.cardframe\\').classList.add(\\'failed\\')">'+
-          '<span class="cardfail">card didn\\u2019t load \\u2014 try again in a moment.</span>'+
-        '</div>'+
-        '<div class="cardcap"><b>'+esc(login)+'</b>'+agentMark(rowOf(login)||{})+'<span class="dot">\\u00B7</span>'+
-          '<a href="https://github.com/'+encodeURIComponent(login)+'" target="_blank" rel="noopener">'+
-            'GitHub \\u2197</a></div>'+
+        '<div class="pcard'+rkClass+'"><div class="pc-in">'+
+          '<div class="pc-top">'+
+            '<span class="pc-brand">'+LOGO+'ccrank</span>'+
+            '<span class="pc-eyebrow">Global Claude Code Leaderboard</span>'+
+          '</div>'+
+          '<div class="pc-hero">'+
+            '<div class="pc-idcol">'+
+              '<div class="pc-av">'+
+                (rank === 1 ? '<span class="pc-crown">'+crownSvg()+'</span>' : '')+
+                avatar(login, r.avatar)+
+              '</div>'+
+              '<div class="pc-idtext">'+
+                '<div class="pc-name'+nmClass+'">'+esc(login)+agentMark(r)+'</div>'+
+                pcPills(r)+
+                '<div class="pc-score"><b>'+fmt(r.score)+'</b><span>PTS</span></div>'+
+                pcTicks(r.score || 0, maxScore)+
+              '</div>'+
+            '</div>'+
+            '<div class="pc-rankcol">'+
+              (rank ? '<div class="pc-rk"><sup>#</sup>'+rank+'</div>'+
+                      '<div class="pc-of">of '+fmt(total)+' worldwide</div>' : '')+
+              '<span class="pc-medal">'+medal+'</span>'+
+            '</div>'+
+          '</div>'+
+          '<div class="pc-panel">'+
+            '<div class="pc-panelhd"><span>Last 13 weeks</span>'+
+              '<div class="pc-stats">'+
+                '<div class="pc-stat"><b>'+fmt(r.prompts)+'</b><span>prompts</span></div>'+
+                '<div class="pc-stat"><b>'+fmt(r.edits)+'</b><span>edits</span></div>'+
+              '</div></div>'+
+            '<div class="pc-heat load">'+pcHeatSkeleton()+'</div>'+
+          '</div>'+
+          '<div class="pc-foot">'+
+            '<span class="tag">CC-Rank '+(rank ? '#'+rank+'/'+fmt(total) : 'unranked')+'</span>'+
+            '<span class="dot">\\u00B7</span>'+
+            '<span>'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</span>'+
+            '<button class="pc-share" onclick="shMenu(event, \\''+esc(login)+'\\', '+rank+', '+(r.score || 0)+')">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '+
+              'stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/>'+
+              '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>'+
+              '<path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>Share</button>'+
+            '<a class="pc-github" href="https://github.com/'+encodeURIComponent(login)+'" '+
+              'target="_blank" rel="noopener">GitHub \\u2197</a>'+
+          '</div>'+
+        '</div></div>'+
         cardAwardsHtml(login)+
       '</div>';
     m.addEventListener('click', function(ev){ if (ev.target === m) closeCard(); });
@@ -1322,6 +1524,17 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     document.documentElement.style.overflow = 'hidden';
     requestAnimationFrame(function(){ m.classList.add('on'); });
     document.addEventListener('keydown', cardKey);
+    // Hydrate the heatmap: the one card field the board payload lacks.
+    fetch(location.origin+'/api/heat/'+encodeURIComponent(login))
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(data){
+        if (!data || seq !== cardSeq || cardEl !== m) return;
+        const box = m.querySelector('.pc-heat');
+        if (!box) return;
+        box.classList.remove('load');
+        box.innerHTML = pcHeatHtml(pcHeatCells(data.heat || []));
+      })
+      .catch(function(){ /* skeleton stays; card is already useful */ });
   }
   // ---- share menu ----------------------------------------------------------
   // One floating menu at a time, anchored to the clicked share button.

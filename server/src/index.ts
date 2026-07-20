@@ -978,6 +978,28 @@ app.get("/og/:login", async (c) => {
   });
 });
 
+// Per-user activity for the click-to-view profile card: the last-13-weeks
+// dailies the modal's heatmap needs. Everything else the card draws (rank,
+// score, prompts, edits, awards, avatar) is already in the board payload the
+// client holds — this fills the one gap, as raw numbers, so the card renders
+// instantly and the heatmap hydrates a beat later instead of waiting on the
+// multi-second PNG render the modal used to embed.
+app.get("/api/heat/:login", async (c) => {
+  const login = c.req.param("login");
+  if (!LOGIN_RE.test(login)) return c.notFound();
+  const u = await c.env.DB.prepare(
+    "SELECT github_id AS id FROM users WHERE login = ? COLLATE NOCASE")
+    .bind(login).first<{ id: number }>();
+  if (!u) return c.notFound();
+  const since = utcDay(Date.now() - 90 * 86400000);
+  const heat = await c.env.DB.prepare(
+    "SELECT day, COUNT(*) AS n FROM events WHERE user_id = ? AND day >= ? AND capped = 0 GROUP BY day")
+    .bind(u.id, since).all();
+  return c.json({ heat: heat.results }, 200, {
+    "Cache-Control": "public, max-age=120",
+  });
+});
+
 // The share page: the dashboard plus per-user og/twitter meta so a pasted
 // link unfurls into the card. ?v=score in shared URLs busts X's unfurl cache.
 app.get("/u/:login", async (c) => {
