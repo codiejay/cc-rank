@@ -6,11 +6,12 @@ compatibility_date = "2024-09-23"
 [[d1_databases]]
 binding = "DB"
 database_name = "ccrank"
-database_id = "REPLACE_WITH_ID_FROM_d1_create"
+database_id = "1bec5674-3033-4d34-8b52-3bcfc12e2498"
 
 # Rendered OG cards (PNG bytes). KV because it's GLOBAL: the share-menu
 # preview pre-warms a card, then any crawler/colo gets it in ~50ms instead
 # of a multi-second cold render. `wrangler kv namespace create OG_KV`.
 [[kv_namespaces]]
 binding = "OG_KV"
-id = "REPLACE_WITH_ID_FROM_kv_create"
+id = "90aac9e55bbe443e94cb6555994e037d"
+preview_id = "90aac9e55bbe443e94cb6555994e037d"
