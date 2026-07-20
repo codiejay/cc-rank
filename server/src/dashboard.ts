@@ -38,9 +38,22 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <title>ccrank · the global Claude Code leaderboard</title>
 <script>
-  // Theme before first paint (no light flash): stored choice, else system.
+  // Theme before first paint (no light flash). One-time hard reset: this push
+  // forces dark on EVERYONE once (even returning users who'd picked light),
+  // then their own choice sticks. After the forced flip, stored choice wins,
+  // else system.
   (function(){
-    var t; try { t = localStorage.getItem('ccrank_theme'); } catch (e) {}
+    var FORCE_KEY = 'ccrank_dark_forced_v1';
+    var t;
+    try {
+      if (!localStorage.getItem(FORCE_KEY)) {
+        t = 'dark';
+        localStorage.setItem('ccrank_theme', 'dark');
+        localStorage.setItem(FORCE_KEY, '1');
+      } else {
+        t = localStorage.getItem('ccrank_theme');
+      }
+    } catch (e) {}
     if (t !== 'light' && t !== 'dark')
       t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', t);
