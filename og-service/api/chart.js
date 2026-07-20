@@ -110,11 +110,19 @@ function footer(left) {
   ]);
 }
 
+// A small coral "YOU" pill — mirrors the dashboard's .youbadge (white on
+// accent). Only drawn for the viewer's own row when they asked for it.
+const youPill = (fs) => txt({ fontWeight: 800, fontSize: fs || 11,
+  letterSpacing: "0.08em", color: "#FFF", background: CORAL, borderRadius: 999,
+  padding: "3px 8px", marginLeft: 8, flexShrink: 0 }, "YOU");
+
 // ---- the drop poster -------------------------------------------------------
 function poster(d, avatars) {
   const e1 = d.entries[0];
   const rest = d.entries.slice(1, 10);
   const colA = rest.slice(0, 5), colB = rest.slice(5);
+  const me = d.me ? String(d.me).toLowerCase() : null;
+  const isMe = (e) => me != null && e.login.toLowerCase() === me;
 
   const rowEl = (e) => div({ alignItems: "center", height: 52, width: "100%" }, [
     txt({ fontWeight: 700, fontSize: 19, color: MUTED, width: 44 },
@@ -123,7 +131,8 @@ function poster(d, avatars) {
     el("img", { borderRadius: 16 }, undefined,
        { src: avatars[e.login] || BLANK, width: 32, height: 32 }),
     txt({ fontWeight: 700, fontSize: 19, color: INK, marginLeft: 12,
-          maxWidth: 250, overflow: "hidden" }, e.login),
+          maxWidth: isMe(e) ? 180 : 250, overflow: "hidden" }, e.login),
+    ...(isMe(e) ? [youPill()] : []),
     txt({ marginLeft: "auto", fontWeight: 800, fontSize: 19, color: INK }, fmt(e.score)),
   ]);
 
@@ -143,8 +152,11 @@ function poster(d, avatars) {
       div({ flexDirection: "column", marginLeft: 22 }, [
         txt({ fontWeight: 700, fontSize: 13, letterSpacing: "0.16em", color: GOLD },
           "THIS WEEK'S MOST CRACKED"),
-        txt({ fontWeight: 800, fontSize: e1.login.length > 16 ? 28 : 36, color: INK,
-              marginTop: 2 }, e1.login),
+        div({ alignItems: "center", marginTop: 2 }, [
+          txt({ fontWeight: 800, fontSize: e1.login.length > 16 ? 28 : 36, color: INK },
+            e1.login),
+          ...(isMe(e1) ? [youPill(14)] : []),
+        ]),
         txt({ fontWeight: 600, fontSize: 15, color: MUTED, marginTop: 4 },
           `${fmt(e1.prompts)} prompts · ${fmt(e1.edits)} edits`),
       ]),
