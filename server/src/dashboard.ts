@@ -688,14 +688,44 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
                     color: var(--ink); font: 600 12px/1 var(--sans); padding: 6px 12px;
                     border-radius: 8px; cursor: pointer; }
   .w25foot button:hover { background: var(--hover); }
-  /* collapse toggle — sits on the wash masthead, top-right */
-  .w25collapse { position: absolute; top: 14px; right: 16px; z-index: 1;
-                 border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.14);
-                 color: #FFF7EF; font: 600 11px/1 var(--mono); letter-spacing: .04em;
-                 padding: 6px 10px; border-radius: 8px; cursor: pointer;
-                 backdrop-filter: blur(2px); transition: background .15s; }
-  .w25collapse:hover { background: rgba(255,255,255,.26); }
+  /* collapse toggle — sits on the wash masthead, top-right. A pill with a live
+     glimmer running around a gradient border: two backgrounds, one fixed inner
+     (padding-box) over one oversized moving sheen (border-box). */
+  .w25collapse { position: absolute; top: 15px; right: 16px; z-index: 2;
+                 display: inline-flex; align-items: center; gap: 6px;
+                 padding: 8px 15px; border-radius: 999px; cursor: pointer;
+                 border: 1.5px solid transparent; color: #FFF7EF;
+                 font: 700 11.5px/1 var(--sans); letter-spacing: .09em; text-transform: uppercase;
+                 background:
+                   linear-gradient(rgba(22,11,6,.52), rgba(22,11,6,.52)) padding-box,
+                   linear-gradient(110deg, rgba(255,235,215,.25) 0%, #FFF6EC 18%, #E8A878 34%,
+                     rgba(255,235,215,.25) 50%, #FFF6EC 66%, #E8A878 82%,
+                     rgba(255,235,215,.25) 100%) border-box;
+                 background-size: 100% 100%, 260% 100%;
+                 background-position: 0 0, 0 0;
+                 box-shadow: 0 3px 14px rgba(60,20,8,.30), inset 0 1px 0 rgba(255,255,255,.18);
+                 -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+                 text-shadow: 0 1px 6px rgba(60,20,8,.5);
+                 animation: w25glimmer 3.4s linear infinite;
+                 transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s; }
+  @keyframes w25glimmer { to { background-position: 0 0, -260% 0; } }
+  .w25collapse:hover { transform: translateY(-1px) scale(1.03);
+                       box-shadow: 0 5px 20px rgba(60,20,8,.42), inset 0 1px 0 rgba(255,255,255,.28); }
+  .w25collapse:active { transform: translateY(0) scale(.99); }
+  @media (prefers-reduced-motion: reduce) { .w25collapse { animation: none; } }
   .w25.collapsed .w25no1, .w25.collapsed #w25rows, .w25.collapsed .w25foot { display: none; }
+  /* show-the-25: tile the body in on reveal, staggered per row. The #id and
+     source order beat the .quiet "no animation" rules above. --d starts at
+     .45s (drop choreography); subtract .4s for a snappy click cascade. */
+  .w25.w25reveal .w25no1 { animation: w25tile .5s cubic-bezier(.22,1,.36,1) both; }
+  .w25.w25reveal #w25rows .w25row { animation: w25tile .5s cubic-bezier(.22,1,.36,1) both;
+                                    animation-delay: calc(var(--d, .4s) - .4s); }
+  .w25.w25reveal .w25foot { animation: w25tile .45s .14s ease both; }
+  @keyframes w25tile { from { opacity: 0; transform: translateY(14px) scale(.97); }
+                       to   { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .w25.w25reveal .w25no1, .w25.w25reveal #w25rows .w25row,
+    .w25.w25reveal .w25foot { animation: none; } }
   @media (prefers-reduced-motion: reduce) {
     .w25wash .wb, .w25head .k, .w25head h2, .w25head .d, .w25no1, .w25crown,
     .w25row, .w25mv, .w25strip.urgent .sq { animation: none; }
@@ -2031,7 +2061,10 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   // drop. Drop choreography (wash, crown, count-up, row cascade) plays once
   // per page load; poll repaints get the .quiet class, same pattern as the
   // board's rise animation.
-  let w25Animated = false, w25Expanded = false, w25Collapsed = false;
+  // The drop always starts COLLAPSED (just its masthead) on every load — the
+  // chart is a click away, never remembered open. Expansion lives only for the
+  // current page; a reload hides it again.
+  let w25Animated = false, w25Expanded = false, w25Collapsed = true;
 
   function w25WeekLabel(week){
     const MO = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -2161,8 +2194,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
           '<h2>the weekly 25</h2>'+
           '<span class="d">'+w25WeekLabel(chart.week)+
             ' \\u00B7 the 25 most cracked claude coders alive</span>'+
-          '<button class="w25collapse" onclick="w25CollapseToggle()" aria-label="collapse the chart">'+
-            (w25Collapsed ? '\\u25B8 show' : '\\u25BE hide')+'</button></div>'+
+          '<button class="w25collapse" onclick="w25CollapseToggle()" aria-label="show or hide the chart">'+
+            (w25Collapsed ? '\\u25B8 show the 25' : '\\u25BE hide')+'</button></div>'+
       '</div>'+
       '<div class="w25no1">'+
         '<span class="avwrap"><span class="w25crown">'+crownSvg()+'</span>'+
@@ -2238,8 +2271,19 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     w25Collapsed = !w25Collapsed;
     const sec = document.querySelector('.w25');
     const btn = document.querySelector('.w25collapse');
-    if (sec) sec.classList.toggle('collapsed', w25Collapsed);
-    if (btn) btn.textContent = w25Collapsed ? '\\u25B8 show' : '\\u25BE hide';
+    if (sec){
+      sec.classList.toggle('collapsed', w25Collapsed);
+      // Opening: replay a staggered tile-in on the spotlight + rows + footer.
+      // Toggle the class off/reflow/on so a rapid re-open restarts the cascade,
+      // and strip it after so a poll repaint doesn't leave it dangling.
+      if (!w25Collapsed){
+        sec.classList.remove('w25reveal');
+        void sec.offsetWidth;
+        sec.classList.add('w25reveal');
+        setTimeout(function(){ sec.classList.remove('w25reveal'); }, 1500);
+      }
+    }
+    if (btn) btn.textContent = w25Collapsed ? '\\u25B8 show the 25' : '\\u25BE hide';
   }
   // Count the #1 score up from 0 on the first drop render of this page load.
   function w25AfterPaint(){
