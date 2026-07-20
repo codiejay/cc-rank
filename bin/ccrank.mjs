@@ -20,6 +20,7 @@ const PKG_ROOT = join(HERE, "..");
 const CC_DIR = join(homedir(), ".ccrank");                 // our config + hook scripts live here
 const CFG = join(CC_DIR, "config.json");
 const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
+const CODEX_HOOKS = join(homedir(), ".codex", "hooks.json"); // Codex reads lifecycle hooks here
 
 // Default server. Overridable with --server <url> or CCRANK_SERVER env.
 const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.ccrank.workers.dev";
@@ -37,6 +38,20 @@ for (let i = 0; i < rest.length; i++) {
   else pos.push(rest[i]);
 }
 const server = (flags.server || DEFAULT_SERVER).replace(/\/$/, "");
+
+// Which coding agent(s) to wire: 'claude' (default), 'codex', or 'both'.
+// Scores merge across agents; this only decides which config files we touch.
+// An explicit --agent wins; otherwise reuse whatever was installed before (so
+// `ccrank update` on a codex/both setup doesn't silently drop back to claude).
+const AGENT = ["claude", "codex", "both"].includes(flags.agent)
+  ? flags.agent
+  : (loadConfig()?.agent || "claude");
+const wantClaude = AGENT === "claude" || AGENT === "both";
+const wantCodex = AGENT === "codex" || AGENT === "both";
+const agentLabel = AGENT === "codex" ? "Codex" : AGENT === "both" ? "Claude Code and Codex" : "Claude Code";
+function restartMsg() {
+  return c.dim(`  Restart ${agentLabel} (or open a new session) to activate.\n`);
+}
 
 const c = { dim: (s) => `\x1b[2m${s}\x1b[0m`, y: (s) => `\x1b[33m${s}\x1b[0m`,
             g: (s) => `\x1b[32m${s}\x1b[0m`, b: (s) => `\x1b[1m${s}\x1b[0m` };
@@ -210,7 +225,34 @@ function installScripts() {
   for (const f of ["hook.mjs", "statusline.mjs"]) copyFileSync(join(PKG_ROOT, "lib", f), join(CC_DIR, f));
 }
 
-// Merge our hooks (and optionally statusline) into ~/.claude/settings.json, non-destructively.
+// Remove any ccrank hook entries from a settings/hooks object, in place. Run
+// before re-adding so upgrades never leave a stale command behind (e.g. the
+// old source-less `hook.mjs prompt` alongside the new `hook.mjs prompt claude`,
+// which would double-count).
+function purgeHooks(s) {
+  for (const ev of Object.keys(s.hooks || {})) {
+    s.hooks[ev] = (s.hooks[ev] || []).filter((g) => !JSON.stringify(g).includes("hook.mjs"));
+    if (!s.hooks[ev].length) delete s.hooks[ev];
+  }
+}
+
+// Build the two hook entries for a given agent's hook object. `source` is baked
+// into the command so the same hook.mjs reports the right agent. `editMatcher`
+// differs per agent (Codex edits are apply_patch).
+function addHooks(s, source, editMatcher) {
+  s.hooks ||= {};
+  const hookCmd = (arg) => `node "${join(CC_DIR, "hook.mjs")}" ${arg} ${source}`;
+  const push = (event, matcher, arg) => {
+    s.hooks[event] ||= [];
+    const entry = { hooks: [{ type: "command", command: hookCmd(arg) }] };
+    if (matcher) entry.matcher = matcher;
+    s.hooks[event].push(entry);
+  };
+  push("UserPromptSubmit", null, "prompt");
+  push("PostToolUse", editMatcher, "edit");
+}
+
+// Merge our hooks (and statusline) into ~/.claude/settings.json, non-destructively.
 function wireClaude() {
   let s = {};
   if (existsSync(CLAUDE_SETTINGS)) {
@@ -219,23 +261,8 @@ function wireClaude() {
   } else {
     mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
   }
-  s.hooks ||= {};
-  const hookCmd = (arg) => `node "${join(CC_DIR, "hook.mjs")}" ${arg}`;
-
-  const ensure = (event, matcher, arg) => {
-    s.hooks[event] ||= [];
-    const cmd = hookCmd(arg);
-    // Compare actual command strings (JSON.stringify escaping broke substring matches).
-    const already = s.hooks[event].some(
-      (g) => (g.hooks || []).some((h) => h.command === cmd)
-    );
-    if (already) return;
-    const entry = { hooks: [{ type: "command", command: cmd }] };
-    if (matcher) entry.matcher = matcher;
-    s.hooks[event].push(entry);
-  };
-  ensure("UserPromptSubmit", null, "prompt");
-  ensure("PostToolUse", "Edit|Write|MultiEdit", "edit");
+  purgeHooks(s);
+  addHooks(s, "claude", "Edit|Write|MultiEdit");
 
   // Statusline: preserve any existing one by wrapping it.
   const ourStatus = `node "${join(CC_DIR, "statusline.mjs")}"`;
@@ -252,12 +279,36 @@ function wireClaude() {
   return { settings: s, wrapped };
 }
 
+// Merge our hooks into ~/.codex/hooks.json (same schema as Claude's, JSON so no
+// TOML editing). Codex edits go through apply_patch. No statusline concept.
+function wireCodex() {
+  let s = {};
+  if (existsSync(CODEX_HOOKS)) {
+    try { s = JSON.parse(readFileSync(CODEX_HOOKS, "utf8")); }
+    catch { throw new Error(`Could not parse ${CODEX_HOOKS}. Fix or move it, then re-run.`); }
+  } else {
+    mkdirSync(dirname(CODEX_HOOKS), { recursive: true });
+  }
+  purgeHooks(s);
+  addHooks(s, "codex", "apply_patch|Edit|Write");
+  return s;
+}
+
 function finishInstall(cfg) {
   installScripts();
-  const { settings, wrapped } = wireClaude();
-  saveConfig({ ...cfg, wrappedStatusLine: wrapped ?? cfg.wrappedStatusLine ?? null });
-  mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
-  writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
+  let wrapped = cfg.wrappedStatusLine ?? null;
+  if (wantClaude) {
+    const res = wireClaude();
+    wrapped = res.wrapped ?? wrapped;
+    mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
+    writeFileSync(CLAUDE_SETTINGS, JSON.stringify(res.settings, null, 2));
+  }
+  if (wantCodex) {
+    const cs = wireCodex();
+    mkdirSync(dirname(CODEX_HOOKS), { recursive: true });
+    writeFileSync(CODEX_HOOKS, JSON.stringify(cs, null, 2));
+  }
+  saveConfig({ ...cfg, agent: AGENT, wrappedStatusLine: wrapped });
   return wrapped;
 }
 
@@ -280,7 +331,7 @@ async function login() {
   console.log(`  ${c.y(boardUrl)}`);
   if (!cfg.roomCode) console.log(`\n  Want a private room for your crew? ${c.dim("ccrank create --name \"Room\"  ·  ccrank join <CODE>")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
-  console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
+  console.log(restartMsg());
 }
 
 async function create() {
@@ -314,7 +365,7 @@ async function create() {
   console.log(`\n  Invite friends. Each of them runs:`);
   console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code}`)}\n`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
-  console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
+  console.log(restartMsg());
 }
 
 async function joinRoom() {
@@ -354,7 +405,7 @@ async function joinRoom() {
   console.log(`  Global board:    ${c.dim(withMe(cfg.server + "/", cfg))}`);
   console.log(`  What is ccrank?  ${c.dim("https://github.com/codiejay/cc-rank")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
-  console.log(c.dim(`\n  Restart Claude Code (or open a new session) to activate.\n`));
+  console.log(restartMsg());
 }
 
 // Pull the latest hook/statusline scripts — no re-auth, same user, counts untouched.
@@ -363,7 +414,7 @@ async function update() {
   if (!cfg?.token) return fail("Not signed in yet. Run: ccrank join <CODE>");
   finishInstall(cfg);
   console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts.`);
-  console.log(c.dim(`  Restart Claude Code (or open a new session) to activate.\n`));
+  console.log(restartMsg());
 }
 
 async function status() {
@@ -380,43 +431,50 @@ async function status() {
 }
 
 function leave() {
-  // Remove our hooks + restore any wrapped statusline. Leaves config in place.
+  // Remove our hooks from BOTH agents + restore any wrapped statusline. Leaves
+  // config in place. Idempotent — safe to run whatever was installed.
   const cfg = loadConfig();
   if (existsSync(CLAUDE_SETTINGS)) {
     const s = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8"));
-    for (const ev of Object.keys(s.hooks || {})) {
-      s.hooks[ev] = s.hooks[ev].filter((g) => !JSON.stringify(g).includes("hook.mjs"));
-      if (!s.hooks[ev].length) delete s.hooks[ev];
-    }
+    purgeHooks(s);
     if (s.statusLine?.command?.includes("statusline.mjs")) {
       if (cfg?.wrappedStatusLine) s.statusLine = { type: "command", command: cfg.wrappedStatusLine };
       else delete s.statusLine;
     }
     writeFileSync(CLAUDE_SETTINGS, JSON.stringify(s, null, 2));
   }
-  console.log(`  ${c.g("✓")} Removed ccrank hooks. Restart Claude Code to finish.`);
+  if (existsSync(CODEX_HOOKS)) {
+    const s = JSON.parse(readFileSync(CODEX_HOOKS, "utf8"));
+    purgeHooks(s);
+    writeFileSync(CODEX_HOOKS, JSON.stringify(s, null, 2));
+  }
+  console.log(`  ${c.g("✓")} Removed ccrank hooks. Restart your agent to finish.`);
 }
 
 function fail(msg) { console.error(`  ${msg}`); process.exitCode = 1; }
 
 function help() {
   console.log(`
-  ${c.b("ccrank")} is the global Claude Code leaderboard. Every prompt and edit
-  scores a point. Sign in with GitHub and you're on the board with every
-  ccrank user. Rooms are optional private groups viewing the same scores.
+  ${c.b("ccrank")} is the global leaderboard for Claude Code and Codex. Every
+  prompt and edit scores a point. Sign in with GitHub and you're on the board
+  with every ccrank user. Rooms are optional private groups viewing the same
+  scores. Use both agents? Your scores merge into one; the board marks Codex.
 
   ${c.y("ccrank login")}                   sign in with GitHub, get on the global board
   ${c.y("ccrank join")} <CODE>              join a private room (logs you in if needed)
   ${c.y("ccrank create")} --name "Room"    create a room, auto-joins you (logs in if needed)
   ${c.y("ccrank update")}                  pull the latest scripts (no re-auth)
   ${c.y("ccrank status")}                  show your global rank + rooms
-  ${c.y("ccrank leave")}                   remove the hooks
+  ${c.y("ccrank leave")}                   remove the hooks (both agents)
 
   Sign-in is GitHub device flow: you enter a one-time code at
   github.com/login/device (or reuse your gh CLI session if it's signed in).
   Scope read:user, public profile only. New machine? Just "ccrank login" again.
 
   Options:
+    --agent <which>   which agent to wire: claude (default), codex, or both.
+                      Claude hooks -> ~/.claude/settings.json; Codex hooks ->
+                      ~/.codex/hooks.json.
     --server <url>    point at a different ccrank server (or set CCRANK_SERVER)
 `);
 }

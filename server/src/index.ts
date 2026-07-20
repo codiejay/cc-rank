@@ -235,8 +235,13 @@ app.post("/api/events", async (c) => {
   const now = Date.now();
   const day = utcDay(now);
 
+  // Which agent sent these — 'codex' or the default 'claude'. Anything else
+  // (older/forked clients, junk) falls back to 'claude'. Drives the board's
+  // Codex mark; scores merge across agents regardless.
+  const source = body?.source === "codex" ? "codex" : "claude";
+
   const stmt = c.env.DB.prepare(
-    "INSERT INTO events (user_id, kind, value, day, ts, capped) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO events (user_id, kind, value, day, ts, capped, source) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
   const parsed: { kind: string; value: number }[] = [];
   for (const e of raw.slice(0, 50)) {
@@ -265,7 +270,7 @@ app.post("/api/events", async (c) => {
     for (const e of parsed.slice(0, Math.max(0, 2000 - total))) {
       const capped = countedLeft > 0 ? 0 : 1;
       if (capped === 0) countedLeft--;
-      batch.push(stmt.bind(user.id, e.kind, e.value, day, now, capped));
+      batch.push(stmt.bind(user.id, e.kind, e.value, day, now, capped, source));
     }
     if (batch.length) await c.env.DB.batch(batch);
   }
@@ -445,7 +450,7 @@ async function boardPayload(db: D1Database, code: string | null) {
   // All data queries are independent of each other — run them in ONE
   // parallel wave instead of serially. This is the difference between ~1s and
   // ~200ms page data on D1.
-  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows, recRows] = await Promise.all([
+  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows, recRows, srcRows] = await Promise.all([
     hasPop
       ? db.prepare(`
           SELECT day, user_id AS id, COUNT(*) AS score FROM events e
@@ -486,7 +491,26 @@ async function boardPayload(db: D1Database, code: string | null) {
     db.prepare(`SELECT user_id AS id, kind, COUNT(*) AS n, MAX(day) AS last
                 FROM day_records GROUP BY user_id, kind`).all()
       .then((r) => r.results as unknown as { id: number; kind: string; n: number; last: string }[]),
+    // Which agents each user has EVER coded with (presence, not score — so no
+    // capped filter). Only non-'claude' rows matter for the UI mark, but we
+    // return all so the enrich step can list every agent per user.
+    hasPop
+      ? db.prepare(`
+          SELECT user_id AS id, source FROM events e
+          WHERE 1=1 ${memberFilter} GROUP BY user_id, source`).bind(...bindMembers).all()
+          .then((r) => r.results as unknown as { id: number; source: string }[])
+      : Promise.resolve([] as { id: number; source: string }[]),
   ]);
+
+  // agents[] per user, from the source stream ('claude' | 'codex'), sorted for
+  // a stable render. The board shows a Codex mark when this includes 'codex'.
+  const agentsBy = new Map<number, string[]>();
+  for (const r of srcRows) {
+    const list = agentsBy.get(r.id) || [];
+    if (!list.includes(r.source)) list.push(r.source);
+    agentsBy.set(r.id, list);
+  }
+  for (const list of agentsBy.values()) list.sort();
 
   // ---- daily-winner streaks + rank movement vs yesterday -------------------
   // Derived from the same global stream, over this board's population.
@@ -584,6 +608,7 @@ async function boardPayload(db: D1Database, code: string | null) {
         streak: streak.get(r.id) || 0,
         awards: awards.get(r.id) || [],
         records: recsBy.get(r.id) || [],
+        agents: agentsBy.get(r.id) || [],
         // +N = climbed N spots since yesterday, -N = dropped, null = new/no history
         delta: prev == null ? null : prev - r.rank,
       };
@@ -915,6 +940,30 @@ async function ogPngCached(env: Bindings, d: OgData, ctx: { waitUntil(p: Promise
 }
 
 // The PNG itself: KV-first, render on miss.
+// The Monday poster: most-cracked spotlight + rows 2-10 with movement. MUST be
+// registered before /og/:login — otherwise the param route swallows "chart.png"
+// as a login, finds no such user, and 404s the poster.
+app.get("/og/chart.png", async (c) => {
+  const chart = await chartPayload(c.env.DB).catch(() => null);
+  if (!chart || !chart.entries.length) return c.notFound();
+  // Optional viewer identity: ?me=<login> brands that person's row with a
+  // "YOU" tag in the poster. Resolve against the rendered top 10 (and to the
+  // canonical login, so the param can't inject arbitrary text), then branch
+  // the cache key — the plain, unbranded poster stays the shared X-unfurl card.
+  const meParam = (c.req.query("me") || "").toLowerCase();
+  const meLogin = meParam
+    ? chart.entries.slice(0, 10).find((e) => e.login.toLowerCase() === meParam)?.login
+    : undefined;
+  track(c, "og_card", { props: { login: "@chart" } });
+  const payload = {
+    kind: "poster", weekLabel: chartWeekLabel(chart.week),
+    charted: chart.entries.length, debuts: chart.debuts,
+    entries: chart.entries.slice(0, 10), me: meLogin,
+  };
+  const key = "og:chart:" + chart.week + (meLogin ? ":me:" + meLogin.toLowerCase() : "");
+  return chartPng(c, await chartPngCached(c.env, key, payload, c.executionCtx));
+});
+
 app.get("/og/:login", async (c) => {
   const login = c.req.param("login").replace(/\.png$/i, "");
   if (!LOGIN_RE.test(login)) return c.notFound();
@@ -988,19 +1037,6 @@ const chartPng = (c: any, png: ArrayBuffer | null) =>
   png
     ? c.body(png, 200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=300" })
     : c.text("render unavailable", 503);
-
-// The Monday poster: most-cracked spotlight + rows 2-10 with movement.
-app.get("/og/chart.png", async (c) => {
-  const chart = await chartPayload(c.env.DB).catch(() => null);
-  if (!chart || !chart.entries.length) return c.notFound();
-  track(c, "og_card", { props: { login: "@chart" } });
-  const payload = {
-    kind: "poster", weekLabel: chartWeekLabel(chart.week),
-    charted: chart.entries.length, debuts: chart.debuts,
-    entries: chart.entries.slice(0, 10),
-  };
-  return chartPng(c, await chartPngCached(c.env, "og:chart:" + chart.week, payload, c.executionCtx));
-});
 
 // One user's chart performance ("debuted at #7").
 app.get("/og/chart/:login", async (c) => {

@@ -326,6 +326,14 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   .awx { font: 800 8px/1 var(--mono); color: var(--card); background: var(--award);
          border-radius: 99px; padding: 2px 4px 1.5px; margin-left: 1px; }
   .award.was { opacity: .55; }
+  /* Codex mark: the OpenAI logomark next to a name when the score includes
+     Codex sessions. Sized to sit with the username; hover = the title tip. */
+  .cxmark { display: inline-flex; align-items: center; color: var(--muted);
+            vertical-align: middle; cursor: help; transition: color .12s; }
+  .cxmark > svg { width: 13px; height: 13px; flex: none; display: block; }
+  .cxmark:hover, .cxmark:focus-visible { color: var(--ink); outline: none; }
+  .podnm .cxmark > svg { width: 14px; height: 14px; }
+  .cardcap .cxmark > svg { width: 15px; height: 15px; }
   /* award-record button: a plain shield next to the gold pills — opens the
      dropdown of every day-end record this player has (held now or before) */
   .pastbtn { font: 700 10.5px/1 var(--mono); color: var(--award); background: none;
@@ -651,6 +659,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
             animation: w25up .55s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d,0s); }
   .w25.quiet .w25row { animation: none; }
   .w25row:hover { background: var(--hover); }
+  .w25row.me { background: var(--me); }
+  .w25row.me:hover { background: var(--me-hov); }
+  .w25row .nm .youbadge, .w25no1 .nm .youbadge { margin-left: 6px; vertical-align: middle; }
   .w25row .pos { width: 26px; font: 13px/1 var(--mono); color: var(--muted); flex: none; }
   .w25mv { width: 40px; flex: none; font: 700 11.5px/1 var(--mono);
            animation: w25pop .45s cubic-bezier(.34,1.56,.64,1) both;
@@ -677,6 +688,14 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
                     color: var(--ink); font: 600 12px/1 var(--sans); padding: 6px 12px;
                     border-radius: 8px; cursor: pointer; }
   .w25foot button:hover { background: var(--hover); }
+  /* collapse toggle — sits on the wash masthead, top-right */
+  .w25collapse { position: absolute; top: 14px; right: 16px; z-index: 1;
+                 border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.14);
+                 color: #FFF7EF; font: 600 11px/1 var(--mono); letter-spacing: .04em;
+                 padding: 6px 10px; border-radius: 8px; cursor: pointer;
+                 backdrop-filter: blur(2px); transition: background .15s; }
+  .w25collapse:hover { background: rgba(255,255,255,.26); }
+  .w25.collapsed .w25no1, .w25.collapsed #w25rows, .w25.collapsed .w25foot { display: none; }
   @media (prefers-reduced-motion: reduce) {
     .w25wash .wb, .w25head .k, .w25head h2, .w25head .d, .w25no1, .w25crown,
     .w25row, .w25mv, .w25strip.urgent .sq { animation: none; }
@@ -716,6 +735,22 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   .btn.ghost { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line2); }
   .btn.ghost:hover { box-shadow: inset 0 0 0 1px var(--ink); }
   .btn + .btn { margin-top: 8px; }
+  /* agent picker: 3 copy buttons — Claude Code / Codex / Both. The clicked one
+     lights up as the active choice and copies its tailored setup prompt. */
+  .agentpick { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+  .apick { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+           padding: 11px 6px; border-radius: 10px; cursor: pointer;
+           font: 600 12px/1 var(--sans); color: var(--muted);
+           background: var(--card); border: 1px solid var(--line2);
+           transition: color .12s, border-color .12s, background .12s; white-space: nowrap; }
+  .apick:hover { color: var(--ink); border-color: var(--muted); }
+  .apick.on { color: var(--ink); border-color: var(--accent);
+              background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+  .apick-ic { display: inline-flex; width: 14px; height: 14px; flex: none; }
+  .apick-ic svg { width: 14px; height: 14px; display: block; }
+  .apick-cx { width: 13px; height: 13px; }
+  .apick-cx svg { width: 13px; height: 13px; }
+  .apickhint { margin: 8px 2px 12px; font-size: 10.5px; color: var(--faint); text-align: center; }
   details { border-top: 1px solid var(--line); }
   details summary { cursor: pointer; list-style: none; display: flex; align-items: center;
                     padding: 13px 0; font-size: 13px; font-weight: 600; }
@@ -926,6 +961,16 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
            transition: transform .15s ease-out, background .15s; }
   .hpill:hover { transform: translateY(-1px); background: var(--pill-hov); }
   .hpill svg { width: 13px; height: 13px; color: var(--accent); flex: none; }
+  /* hero agent picker: three "Copy <agent> prompt" pills */
+  .hero-copyrow { position: relative; display: flex; flex-direction: column;
+                  align-items: center; margin-top: 18px; }
+  .hero-agents { margin-top: 0; }
+  .hpill.hagent { padding: 10px 15px; }
+  .hpill.hagent.on { background: var(--pill-hov); box-shadow: 0 8px 20px rgba(35,28,15,.22),
+                     inset 0 0 0 1.6px var(--accent); }
+  .hpill-cx { display: inline-flex; width: 13px; height: 13px; flex: none; }
+  .hpill-cx svg { width: 13px; height: 13px; }
+  .hpill .hlbl { line-height: 1; }
   @media (prefers-reduced-motion: reduce) {
     .htype { width: 33ch; } .hfade, .hrank { opacity: 1; transform: none; }
   }
@@ -1225,7 +1270,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
             'onerror="this.closest(\\'.cardframe\\').classList.add(\\'failed\\')">'+
           '<span class="cardfail">card didn\\u2019t load \\u2014 try again in a moment.</span>'+
         '</div>'+
-        '<div class="cardcap"><b>'+esc(login)+'</b><span class="dot">\\u00B7</span>'+
+        '<div class="cardcap"><b>'+esc(login)+'</b>'+agentMark(rowOf(login)||{})+'<span class="dot">\\u00B7</span>'+
           '<a href="https://github.com/'+encodeURIComponent(login)+'" target="_blank" rel="noopener">'+
             'GitHub \\u2197</a></div>'+
         cardAwardsHtml(login)+
@@ -1397,26 +1442,62 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   // A prompt the user pastes into their coding agent. Identity is real GitHub
   // auth (gh CLI token or device flow), so the agent never asks for a name —
   // it just runs the command and shepherds the sign-in.
-  function agentPrompt(code, roomName){
+  // Agent-aware setup prompt. agent is 'claude' | 'codex' | 'both' and only
+  // changes the install flag + the "restart X" wording — one CLI, one hook,
+  // one identity across agents. Scores merge; the board just marks Codex users.
+  function agentPrompt(code, roomName, agent){
+    agent = agent === 'codex' || agent === 'both' ? agent : 'claude';
     const S = location.origin;
+    const AG = agent === 'codex' ? ' --agent codex' : agent === 'both' ? ' --agent both' : '';
+    const tool = agent === 'codex' ? 'Codex' : agent === 'both' ? 'Claude Code and Codex' : 'Claude Code';
+    const board = agent === 'claude' ? 'the global Claude Code leaderboard'
+      : 'the global leaderboard for Claude Code and Codex';
     const head = code
-      ? 'Help me join a ccrank room (a Claude Code leaderboard). Room code: '+code+'. My flow is JOIN, so skip the flow question.'
+      ? 'Help me join a ccrank room ('+board+'). Room code: '+code+'. My flow is JOIN, so skip the flow question.'
       : roomName
-      ? 'Help me set up ccrank (the global Claude Code leaderboard). My flow is CREATE with the room name \\"'+String(roomName).replace(/"/g, '')+'\\". Skip the flow question and do not ask me for a name.'
-      : 'Help me set up ccrank (the global Claude Code leaderboard). First ask me ONE question and wait for my answer. Which flow do I want:\\n  (a) GET ON THE BOARD (the default): sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room: then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew: then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
-    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. Whenever you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice question tool (AskUserQuestion) so I can select with the arrow keys and Enter instead of typing. Only fall back to a plain typed question for free-text answers like a room name.\\n\\nFollow these steps exactly, in order:\\n'+
+      ? 'Help me set up ccrank ('+board+'). My flow is CREATE with the room name \\"'+String(roomName).replace(/"/g, '')+'\\". Skip the flow question and do not ask me for a name.'
+      : 'Help me set up ccrank ('+board+'). First ask me ONE question and wait for my answer. Which flow do I want:\\n  (a) GET ON THE BOARD (the default): sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room: then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew: then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
+    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. When you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice prompt if you have one (e.g. AskUserQuestion) so I can pick with the arrow keys; otherwise just ask me plainly. Only free-text answers like a room name need a typed reply.\\n\\nFollow these steps exactly, in order:\\n'+
       '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
       '2. If JOIN: verify the room exists with GET '+S+'/api/rooms/<CODE>/check. If \\"reason\\":\\"room_not_found\\" -> tell me the code looks wrong and stop.\\n'+
-      '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login. JOIN: npx github:codiejay/cc-rank join <CODE>. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\" (creating auto-joins me, so no separate join needed).\\n'+
+      '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login'+AG+'. JOIN: npx github:codiejay/cc-rank join <CODE>'+AG+'. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\"'+AG+' (creating auto-joins me, so no separate join needed).\\n'+
       '4. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard, so just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this. I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
       '5. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
       '6. When it finishes, show me what it printed: my verified GitHub login, plus the room code + dashboard link if a room was involved (global board link otherwise).\\n'+
-      '7. Tell me to restart Claude Code so my prompts and edits start counting.';
+      '7. Tell me to restart '+tool+' so my prompts and edits start counting.';
   }
-  function copyAgent(code, outId){
+  // Three-way copy control: Claude Code / Codex / Both. Each button copies the
+  // prompt tailored to that agent and lights up as the active choice. codeExpr
+  // is a room-code expression (invite flow) or 'null' (get-on-board).
+  function agentPicker(outId, codeExpr){
+    const btn = function(ag, label, glyph){
+      return '<button class="apick'+(ag==='claude'?' on':'')+'" data-agent="'+ag+'" '+
+        'onclick="copyAgentFor(event,\\''+ag+'\\',\\''+outId+'\\','+codeExpr+')">'+glyph+label+'</button>';
+    };
+    const cc = '<svg class="apick-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" '+
+      'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+      '<path d="M5 16l4-4-4-4M11 17h7"/></svg>';
+    const cx = '<span class="apick-ic apick-cx">'+openaiSvg()+'</span>';
+    return '<div class="agentpick" role="group" aria-label="pick your coding agent">'+
+      btn('claude', 'Claude Code', cc)+
+      btn('codex', 'Codex', cx)+
+      btn('both', 'Both', cc+cx)+
+      '</div>'+
+      '<div class="apickhint">Pick your agent \\u2014 it copies a setup prompt to paste into it.</div>';
+  }
+  // Last agent chosen in a picker — the "by hand" join/create panels inherit it.
+  let PICKED_AGENT = 'claude';
+  function copyAgentFor(ev, agent, outId, code){
+    PICKED_AGENT = agent;
+    if (ev){ ev.preventDefault();
+      const grp = ev.currentTarget.parentElement;
+      if (grp) grp.querySelectorAll('.apick').forEach(function(b){
+        b.classList.toggle('on', b.getAttribute('data-agent') === agent); });
+    }
     const out = document.getElementById(outId);
-    navigator.clipboard.writeText(agentPrompt(code)).then(function(){
-      msg(out, 'ok', 'copied. paste it into Claude Code');
+    const label = agent === 'codex' ? 'Codex' : agent === 'both' ? 'Claude Code or Codex' : 'Claude Code';
+    navigator.clipboard.writeText(agentPrompt(code || null, null, agent)).then(function(){
+      msg(out, 'ok', 'Copied. Paste it into '+label+(code ? ' to join.' : '.'));
     }, function(){ msg(out, 'err', 'couldn\\u2019t copy. is the page focused?'); });
     return false;
   }
@@ -1431,8 +1512,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     try {
       const room = await (await fetch('/api/rooms/'+code+'/check')).json();
       if (room.reason === 'room_not_found') return msg(out, 'err', 'Room '+code+' not found. Double-check the code.');
-      navigator.clipboard.writeText(agentPrompt(code)).then(function(){
-        msg(out, 'ok', 'Prompt copied. Paste it into Claude Code. You\\u2019re joining '+(room.roomName||code)+', and your global score comes with you.');
+      navigator.clipboard.writeText(agentPrompt(code, null, PICKED_AGENT)).then(function(){
+        msg(out, 'ok', 'Prompt copied. Paste it into your agent. You\\u2019re joining '+(room.roomName||code)+', and your global score comes with you.');
       }, function(){ msg(out, 'err', 'Couldn\\u2019t copy. Is the page focused?'); });
     } catch { msg(out, 'err', 'Couldn\\u2019t reach the server. Try again.'); }
   }
@@ -1445,8 +1526,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     try {
       const r = await (await fetch('/api/check-room?name='+encodeURIComponent(room))).json();
       if (r.reason === 'room_name_taken') return msg(out, 'err', 'A room called "'+room+'" already exists. Room names are unique, so pick another.');
-      navigator.clipboard.writeText(agentPrompt(null, room)).then(function(){
-        msg(out, 'ok', 'Prompt copied. Paste it into Claude Code to create \\u201C'+room+'\\u201D.');
+      navigator.clipboard.writeText(agentPrompt(null, room, PICKED_AGENT)).then(function(){
+        msg(out, 'ok', 'Prompt copied. Paste it into your agent to create \\u201C'+room+'\\u201D.');
       }, function(){ msg(out, 'err', 'Couldn\\u2019t copy. Is the page focused?'); });
     } catch { msg(out, 'err', 'Couldn\\u2019t reach the server. Try again.'); }
   }
@@ -1687,6 +1768,25 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       '<path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/>'+
       '<rect x="3.5" y="16" width="17" height="1.8" rx=".9"/></svg>';
   }
+  // Codex mark: the official OpenAI logomark, shown next to any user whose
+  // score includes OpenAI Codex sessions. The only cross-agent tell on the
+  // board (scores themselves merge). Title = the hover explanation.
+  // The official OpenAI logomark (one path), reused by the board mark and the
+  // onboarding "Codex" button.
+  function openaiSvg(){
+    return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'+
+      '<path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>'+
+      '</svg>';
+  }
+  function agentMark(r){
+    if (!(r.agents || []).includes('codex')) return '';
+    const both = (r.agents || []).includes('claude');
+    const why = both
+      ? 'Codes with OpenAI Codex and Claude Code \\u2014 this score is both combined.'
+      : 'Codes with OpenAI Codex \\u2014 this score is from Codex sessions.';
+    return '<span class="cxmark" tabindex="0" title="'+esc(why)+'" aria-label="'+esc(why)+'">'+
+      openaiSvg()+'</span>';
+  }
   // Earned-badge pills — each badge gets its own glyph (same set as the badge
   // study) and a hover blurb in the site voice explaining what it took.
   function bIco(paths){
@@ -1877,7 +1977,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         '<span class="podav">'+avatar(login, r.avatar)+
           '<span class="medal">'+r.rank+'</span></span>'+
         '<div class="podnm"><a href="https://github.com/'+encodeURIComponent(login)+
-          '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+'</div>'+
+          '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+'</div>'+
         '<div class="podsc">'+fmt(r.score)+'</div>'+
         '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div>'+
         ((r.awards||[]).length ? '<div class="podawards">'+awardsHtml(r)+'</div>' : '')+
@@ -1918,7 +2018,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
         '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
@@ -1931,7 +2031,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   // drop. Drop choreography (wash, crown, count-up, row cascade) plays once
   // per page load; poll repaints get the .quiet class, same pattern as the
   // board's rise animation.
-  let w25Animated = false, w25Expanded = false;
+  let w25Animated = false, w25Expanded = false, w25Collapsed = false;
 
   function w25WeekLabel(week){
     const MO = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -1955,16 +2055,24 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     if (m == null || m === 0) return '\\u2014';
     return (m > 0 ? '\\u25B2' : '\\u25BC') + Math.abs(m);
   }
+  // Is this chart login the current viewer? (login-based, mirrors w25Entry;
+  // the leaderboard highlights by numeric id, but chart entries carry login.)
+  function w25IsMe(login){
+    return !!(ME_WHO && ME_WHO.login &&
+      ME_WHO.login.toLowerCase() === String(login).toLowerCase());
+  }
   function w25RowsHtml(chart){
     const entries = chart.entries.slice(1, w25Expanded ? 25 : 10);
     const max = chart.entries[0].score;
     return entries.map(function(e, i){
-      return '<div class="w25row" style="--d:'+(0.45 + i * 0.05).toFixed(2)+'s">'+
+      const mine = w25IsMe(e.login);
+      return '<div class="w25row'+(mine ? ' me' : '')+'" style="--d:'+(0.45 + i * 0.05).toFixed(2)+'s">'+
         '<span class="pos">'+(e.position < 10 ? '0' : '')+e.position+'</span>'+
         w25MvHtml(e)+
         avatar(e.login, e.avatar)+
         '<div class="who"><div class="nm"><a href="https://github.com/'+
-          encodeURIComponent(e.login)+'" target="_blank" rel="noopener">'+esc(e.login)+'</a></div>'+
+          encodeURIComponent(e.login)+'" target="_blank" rel="noopener">'+esc(e.login)+'</a>'+
+          (mine ? '<span class="youbadge">you</span>' : '')+'</div>'+
         '<div class="meta">'+fmt(e.prompts)+' prompts \\u00B7 '+fmt(e.edits)+' edits</div></div>'+
         '<span class="w25meter">'+meterHtml(e.score, max)+'</span>'+
         '<span class="hist">peak #'+e.peak+' \\u00B7 '+e.weeks+' wk'+(e.weeks > 1 ? 's' : '')+'</span>'+
@@ -2034,7 +2142,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     const counts = n + ' charted' +
       (chart.debuts ? ' \\u00B7 ' + chart.debuts + ' debut' + (chart.debuts > 1 ? 's' : '') : '') +
       (chart.reentries ? ' \\u00B7 ' + chart.reentries + ' re-entr' + (chart.reentries > 1 ? 'ies' : 'y') : '');
-    return '<section class="w25'+(w25Animated ? ' quiet' : '')+'"><div class="w25card">'+
+    return '<section class="w25'+(w25Animated ? ' quiet' : '')+(w25Collapsed ? ' collapsed' : '')+'"><div class="w25card">'+
       '<div class="w25wash"><svg viewBox="0 0 800 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
         '<defs><filter id="w25f" x="-20%" y="-20%" width="140%" height="140%">'+
           '<feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="7" result="n"/>'+
@@ -2052,14 +2160,17 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         '<div class="w25head"><span class="k">the drop</span>'+
           '<h2>the weekly 25</h2>'+
           '<span class="d">'+w25WeekLabel(chart.week)+
-            ' \\u00B7 the 25 most cracked claude coders alive</span></div>'+
+            ' \\u00B7 the 25 most cracked claude coders alive</span>'+
+          '<button class="w25collapse" onclick="w25CollapseToggle()" aria-label="collapse the chart">'+
+            (w25Collapsed ? '\\u25B8 show' : '\\u25BE hide')+'</button></div>'+
       '</div>'+
       '<div class="w25no1">'+
         '<span class="avwrap"><span class="w25crown">'+crownSvg()+'</span>'+
           avatar(e1.login, e1.avatar)+'</span>'+
         '<div class="who"><div class="k">this week\\u2019s most cracked</div>'+
           '<div class="nm"><a href="https://github.com/'+encodeURIComponent(e1.login)+
-            '" target="_blank" rel="noopener">'+esc(e1.login)+'</a></div>'+
+            '" target="_blank" rel="noopener">'+esc(e1.login)+'</a>'+
+            (w25IsMe(e1.login) ? '<span class="youbadge">you</span>' : '')+'</div>'+
           '<div class="meta">'+fmt(e1.prompts)+' prompts \\u00B7 '+fmt(e1.edits)+' edits \\u00B7 '+
             e1.weeks+' wk'+(e1.weeks > 1 ? 's' : '')+' on chart \\u00B7 peak #'+e1.peak+'</div></div>'+
         '<div class="scr"><b class="glint" id="w25score" data-n="'+e1.score+'">'+
@@ -2068,18 +2179,67 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       '</div>'+
       '<div id="w25rows">'+w25RowsHtml(chart)+'</div>'+
       '<div class="w25foot"><span>'+counts+' \\u00B7 new chart every monday</span>'+
-        '<button onclick="w25CopyLink(this)" style="margin-left:auto">share the chart</button>'+
+        '<button onclick="w25CopyImg(this)" style="margin-left:auto">copy img</button>'+
+        '<button onclick="w25DlImg(this)" style="margin-left:8px">download</button>'+
+        '<button onclick="w25OpenX(this)" style="margin-left:8px">open X</button>'+
         (n > 10 ? '<button id="w25more" onclick="w25Toggle()" style="margin-left:8px">'+
           (w25Expanded ? 'show top 10' : 'see all ' + n)+'</button>' : '')+
       '</div>'+
     '</div></section>';
   }
-  async function w25CopyLink(btn){
+  // Chart-level share: the Monday poster PNG (/og/chart.png). Three controls —
+  // copy the image, download it, or copy-then-open-X. Same promise-flavored
+  // ClipboardItem trick as the per-user share (keeps the gesture alive).
+  // The poster URL, tagged with ?me=<login> when the viewer is on this chart so
+  // the downloaded/copied PNG carries their "YOU" badge (server ignores a me
+  // that isn't in the rendered top 10).
+  function w25Img(){
+    const mine = ME_WHO && ME_WHO.login && w25Entry(ME_WHO.login);
+    return location.origin + '/og/chart.png' +
+      (mine ? '?me=' + encodeURIComponent(ME_WHO.login) : '');
+  }
+  async function w25CopyImg(btn){
+    const orig = btn.textContent;
     try {
-      await navigator.clipboard.writeText(location.origin + '/chart');
-      btn.textContent = 'link copied. go flex';
-      setTimeout(function(){ btn.textContent = 'share the chart'; }, 1800);
-    } catch (e) { btn.textContent = location.origin + '/chart'; }
+      btn.textContent = 'copying\\u2026';
+      const p = fetch(w25Img()).then(function(r){ if (!r.ok) throw 0; return r.blob(); });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': p })]);
+      btn.textContent = 'copied. go flex';
+    } catch (e) { w25DlImg(btn); return; }
+    setTimeout(function(){ btn.textContent = orig; }, 1800);
+  }
+  function w25DlImg(btn){
+    const a = document.createElement('a');
+    a.href = w25Img(); a.download = 'ccrank-weekly25.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    if (btn){ const orig = btn.textContent; btn.textContent = 'downloaded';
+      setTimeout(function(){ btn.textContent = orig; }, 1800); }
+  }
+  async function w25OpenX(btn){
+    const orig = btn.textContent;
+    let copied = false;
+    try {
+      btn.textContent = 'copying\\u2026';
+      const p = fetch(w25Img()).then(function(r){ if (!r.ok) throw 0; return r.blob(); });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': p })]);
+      copied = true;
+    } catch (e) {}
+    const text = 'the weekly 25 just dropped. the 25 most cracked claude coders alive, '+
+      'new every monday.\\n\\n'+location.origin+'/chart';
+    const w = window.open('https://x.com/intent/post?text='+encodeURIComponent(text),
+      '_blank', 'noopener');
+    btn.textContent = copied ? (w ? 'copied. paste it in your post' : 'copied. click again for X')
+      : (w ? orig : 'click again for X');
+    setTimeout(function(){ btn.textContent = orig; }, 2400);
+  }
+  // Collapse the whole drop down to just its masthead. The flag is read back in
+  // w25Html so a poll repaint keeps it collapsed instead of springing open.
+  function w25CollapseToggle(){
+    w25Collapsed = !w25Collapsed;
+    const sec = document.querySelector('.w25');
+    const btn = document.querySelector('.w25collapse');
+    if (sec) sec.classList.toggle('collapsed', w25Collapsed);
+    if (btn) btn.textContent = w25Collapsed ? '\\u25B8 show' : '\\u25BE hide';
   }
   // Count the #1 score up from 0 on the first drop render of this page load.
   function w25AfterPaint(){
@@ -2134,7 +2294,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       '<span class="onb-tag">'+tag+'</span></div>'+
       '<div class="pad">'+(who ? '' : termDemo())+
       '<p class="hint">'+hint+'</p>'+
-      '<button class="btn dark glow" onclick="copyAgent(null, \\'aOut\\')">Copy the agent prompt</button>'+
+      agentPicker('aOut', 'null')+
       '<div id="aOut" style="margin-bottom:10px"></div>'+
       '<details><summary>Join a room by hand</summary><div class="fields">'+
         '<input id="jCode" class="up" placeholder="ROOM CODE" maxlength="6" autocomplete="off" />'+
@@ -2167,7 +2327,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         (revealed ? '' : '<div class="veil"><button class="reveal" '+
           'onclick="revealCode(event)">Reveal code</button></div>')+
       '</div>'+
-      '<button class="btn dark" onclick="copyAgent(CODE, \\'rOut\\')">Copy the agent prompt</button>'+
+      agentPicker('rOut', 'CODE')+
       '<a class="btn ghost" href="/?join='+esc(CODE)+'">Open the join page</a>'+
       '<div id="rOut"></div>'+
       '</div></section>';
@@ -2321,10 +2481,14 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
             '<span class="hl"><span class="ps">&gt;</span> <b class="htype">make the checkout page responsive</b></span>'+
             lines+
           '</div></div>'+
+        '<div class="hero-copyrow">'+
+          '<div class="hero-pills hero-agents">'+
+            heroPill('claude', 'Copy Claude Code prompt', heroCcGlyph())+
+            heroPill('codex', 'Copy Codex prompt', '<span class="hpill-cx">'+openaiSvg()+'</span>')+
+            heroPill('both', 'Copy Both prompt', heroCcGlyph()+'<span class="hpill-cx">'+openaiSvg()+'</span>')+
+          '</div>'+
+        '</div>'+
         '<div class="hero-pills">'+
-          '<button class="hpill" onclick="copyHero(this)">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'+
-            'Copy the agent prompt</button>'+
           '<button class="hpill" onclick="jumpTo(\\'join\\')">'+
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>'+
             'Join a room</button>'+
@@ -2336,11 +2500,23 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     heroPlayed = true;
     return html;
   }
-  function copyHero(btn){
-    navigator.clipboard.writeText(agentPrompt(null)).then(function(){
-      const label = btn.childNodes[btn.childNodes.length - 1];
-      label.textContent = 'Copied. Paste it into Claude Code';
-      setTimeout(function(){ label.textContent = 'Copy the agent prompt'; }, 2400);
+  function heroCcGlyph(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '+
+      'stroke-linecap="round" stroke-linejoin="round"><path d="M5 16l4-4-4-4M11 17h7"/></svg>';
+  }
+  function heroPill(agent, label, glyph){
+    return '<button class="hpill hagent'+(agent==='claude'?' on':'')+'" data-agent="'+agent+'" '+
+      'onclick="copyHeroFor(this,\\''+agent+'\\')">'+glyph+
+      '<span class="hlbl">'+label+'</span></button>';
+  }
+  function copyHeroFor(btn, agent){
+    PICKED_AGENT = agent;
+    const grp = btn.parentElement;
+    if (grp) grp.querySelectorAll('.hagent').forEach(function(b){ b.classList.toggle('on', b === btn); });
+    const label = btn.querySelector('.hlbl');
+    const orig = agent === 'codex' ? 'Copy Codex prompt' : agent === 'both' ? 'Copy Both prompt' : 'Copy Claude Code prompt';
+    navigator.clipboard.writeText(agentPrompt(null, null, agent)).then(function(){
+      if (label){ label.textContent = 'Copied!'; setTimeout(function(){ label.textContent = orig; }, 2000); }
     });
   }
   function jumpTo(which){

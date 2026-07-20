@@ -49,10 +49,15 @@ CREATE TABLE IF NOT EXISTS events (
   -- Anti-farming: events past the daily counted cap (500/user/UTC-day) are
   -- stored but flagged; every score/board/chart query filters capped = 0.
   -- Set at insert time, never retroactively.
-  capped  INTEGER NOT NULL DEFAULT 0
+  capped  INTEGER NOT NULL DEFAULT 0,
+  -- Which coding agent produced the event: 'claude' | 'codex'. Scores merge
+  -- across agents (one dev, one number); the board shows a Codex mark on any
+  -- user who has ever sent a codex-sourced event.
+  source  TEXT NOT NULL DEFAULT 'claude'
 );
 -- Migration for pre-existing deployments:
 --   ALTER TABLE events ADD COLUMN capped INTEGER NOT NULL DEFAULT 0;
+--   ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT 'claude';
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
 CREATE INDEX IF NOT EXISTS idx_events_day  ON events(day);
 CREATE INDEX IF NOT EXISTS idx_events_user_day ON events(user_id, day);
