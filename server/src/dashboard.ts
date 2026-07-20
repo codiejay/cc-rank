@@ -726,6 +726,17 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   @media (prefers-reduced-motion: reduce) {
     .w25.w25reveal .w25no1, .w25.w25reveal #w25rows .w25row,
     .w25.w25reveal .w25foot { animation: none; } }
+  /* hide-the-25: reverse tile-out — rows lift + fade bottom-first (reverse
+     stagger via a negative delay off --d), then JS lands display:none. */
+  .w25.w25collapsing .w25foot { animation: w25untile .3s ease both; }
+  .w25.w25collapsing #w25rows .w25row { animation: w25untile .32s ease both;
+                                        animation-delay: calc(.5s - var(--d, .45s)); }
+  .w25.w25collapsing .w25no1 { animation: w25untile .32s .12s cubic-bezier(.4,0,.7,.2) both; }
+  @keyframes w25untile { from { opacity: 1; transform: none; }
+                         to   { opacity: 0; transform: translateY(-12px) scale(.97); } }
+  @media (prefers-reduced-motion: reduce) {
+    .w25.w25collapsing .w25no1, .w25.w25collapsing #w25rows .w25row,
+    .w25.w25collapsing .w25foot { animation: none; } }
   @media (prefers-reduced-motion: reduce) {
     .w25wash .wb, .w25head .k, .w25head h2, .w25head .d, .w25no1, .w25crown,
     .w25row, .w25mv, .w25strip.urgent .sq { animation: none; }
@@ -2267,23 +2278,39 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   }
   // Collapse the whole drop down to just its masthead. The flag is read back in
   // w25Html so a poll repaint keeps it collapsed instead of springing open.
+  // Opening tiles the body in; closing tiles it OUT first, then lands
+  // display:none once the animation finishes (display can't itself animate).
   function w25CollapseToggle(){
     w25Collapsed = !w25Collapsed;
     const sec = document.querySelector('.w25');
     const btn = document.querySelector('.w25collapse');
-    if (sec){
-      sec.classList.toggle('collapsed', w25Collapsed);
-      // Opening: replay a staggered tile-in on the spotlight + rows + footer.
-      // Toggle the class off/reflow/on so a rapid re-open restarts the cascade,
-      // and strip it after so a poll repaint doesn't leave it dangling.
-      if (!w25Collapsed){
-        sec.classList.remove('w25reveal');
-        void sec.offsetWidth;
-        sec.classList.add('w25reveal');
-        setTimeout(function(){ sec.classList.remove('w25reveal'); }, 1500);
-      }
-    }
     if (btn) btn.textContent = w25Collapsed ? '\\u25B8 show the 25' : '\\u25BE hide';
+    if (!sec) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (w25Collapsed){
+      // Closing: play the reverse cascade, keep the body visible through it,
+      // then hide. reduced-motion collapses instantly.
+      sec.classList.remove('w25reveal');
+      if (reduce){ sec.classList.add('collapsed'); return; }
+      sec.classList.remove('w25collapsing');
+      void sec.offsetWidth;
+      sec.classList.add('w25collapsing');
+      setTimeout(function(){
+        // Only land the hide if we're still meant to be collapsed (guards a
+        // fast re-open that flipped the flag back mid-animation).
+        if (w25Collapsed){ sec.classList.add('collapsed'); }
+        sec.classList.remove('w25collapsing');
+      }, 460);
+    } else {
+      // Opening: reveal immediately, replay the tile-in cascade. Strip the
+      // class after so a poll repaint doesn't leave it dangling.
+      sec.classList.remove('w25collapsing');
+      sec.classList.remove('collapsed');
+      sec.classList.remove('w25reveal');
+      void sec.offsetWidth;
+      sec.classList.add('w25reveal');
+      setTimeout(function(){ sec.classList.remove('w25reveal'); }, 1500);
+    }
   }
   // Count the #1 score up from 0 on the first drop render of this page load.
   function w25AfterPaint(){
