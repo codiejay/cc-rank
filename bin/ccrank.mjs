@@ -10,6 +10,7 @@
 // with api.github.com before minting a session. No username squatting possible.
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { scanClaudeHistory } from "../lib/backfill.mjs";
 import { execSync, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -312,6 +313,48 @@ function finishInstall(cfg) {
   return wrapped;
 }
 
+// ---- backfill --------------------------------------------------------------
+// One-time import of the last 7 days of local Claude Code history, so a brand
+// new user doesn't debut at the bottom of the board. The scan happens HERE and
+// sends per-day counts only — never your code. Server rules keep it honest:
+// once per GitHub account ever, only days with zero tracked events (so it can
+// never double-count), and the normal daily caps still apply.
+async function offerBackfill(cfg, { explicit = false } = {}) {
+  let scan;
+  try { scan = await scanClaudeHistory(7); } catch { return; }
+  if (!scan.days.length) {
+    if (explicit) console.log(`  No Claude Code history found for the last 7 days — nothing to backfill.`);
+    return;
+  }
+  console.log(`\n  Found ${c.b(scan.prompts)} prompts and ${c.b(scan.edits)} file edits in your local`);
+  console.log(`  Claude Code history from the last 7 days (before today). Backfilling`);
+  console.log(`  sends those per-day counts only — ${c.b("never your code")}.`);
+  if (!(await askYesNo("Backfill them onto the board? (one shot per account)"))) {
+    console.log(c.dim(`  Skipped. Changed your mind? "ccrank backfill" — still one shot.`));
+    return;
+  }
+  try {
+    const res = await api("/api/backfill", "POST", { token: cfg.token, days: scan.days });
+    if (res.prompts + res.edits > 0) {
+      console.log(`  ${c.g("✓")} Backfilled ${c.b(res.prompts)} prompts + ${c.b(res.edits)} edits across ${res.days} day${res.days === 1 ? "" : "s"}. No fresh start for you.`);
+    } else {
+      console.log(c.dim(`  Nothing credited — those days already have live-tracked events.`));
+    }
+  } catch (e) {
+    if (e.message === "already_backfilled") {
+      console.log(c.dim(`  This account already used its one backfill — skipping.`));
+    } else {
+      console.log(c.dim(`  Backfill didn't go through (${e.message}). Retry later: ccrank backfill`));
+    }
+  }
+}
+
+async function backfillCmd() {
+  const cfg = loadConfig();
+  if (!cfg?.token) return fail(`Not signed in yet. Run "ccrank login" first.`);
+  await offerBackfill(cfg, { explicit: true });
+}
+
 // ---- commands ------------------------------------------------------------
 
 // Sign in with GitHub and get on the GLOBAL board — no room needed. Also the
@@ -325,6 +368,7 @@ async function login() {
   console.log(`  Claude edits scores you a point. Only counts leave your machine, ${c.b("never your code")}.`);
   // Send them straight to their board — room if they have one, else global.
   // The ?me= link is always printed too (SSH/headless can't pop a browser).
+  await offerBackfill(cfg);
   const boardUrl = withMe(cfg.roomCode ? cfg.server + "/r/" + cfg.roomCode : cfg.server + "/", cfg);
   const opened = openBrowser(boardUrl);
   console.log(`\n  Your board${opened ? " (opening in your browser)" : ""}:`);
@@ -356,6 +400,7 @@ async function create() {
 
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Room created: ${c.b(name)}. You're in it.`);
+  await offerBackfill(cfg);
   // Auto-open the room page: shows the board AND teaches this browser the
   // room code so the site's sidebar can link it from now on.
   const roomUrl = withMe(cfg.server + "/r/" + code, cfg);
@@ -392,6 +437,7 @@ async function joinRoom() {
 
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Joined ${c.b(res.roomName)}`);
+  await offerBackfill(cfg);
   const who = res.owner ? `${c.b(res.owner)} invited you to` : `You're in`;
   console.log(`  ${who} a private room on the global ccrank board.`);
   console.log(`  Every prompt you send and every file Claude edits scores you a point.`);
@@ -464,6 +510,8 @@ function help() {
   ${c.y("ccrank join")} <CODE>              join a private room (logs you in if needed)
   ${c.y("ccrank create")} --name "Room"    create a room, auto-joins you (logs in if needed)
   ${c.y("ccrank update")}                  pull the latest scripts (no re-auth)
+  ${c.y("ccrank backfill")}                one-time import of your last 7 days of local
+                                 Claude Code history (counts only, never code)
   ${c.y("ccrank status")}                  show your global rank + rooms
   ${c.y("ccrank leave")}                   remove the hooks (both agents)
 
@@ -479,5 +527,5 @@ function help() {
 `);
 }
 
-const table = { login, create, join: joinRoom, update, status, leave, help };
+const table = { login, create, join: joinRoom, update, status, leave, backfill: backfillCmd, help };
 Promise.resolve((table[cmd] || help)()).catch((e) => fail(e.message));

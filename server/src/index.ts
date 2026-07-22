@@ -277,6 +277,112 @@ app.post("/api/events", async (c) => {
   return json(c, { ok: true, recorded: parsed.length });
 });
 
+// ---- backfill --------------------------------------------------------------
+// One-time import of a new user's last 7 days of LOCAL Claude Code history
+// (the CLI scans ~/.claude/projects transcripts and sends per-day counts).
+// Solves the "new entry always debuts at the bottom" cold start without
+// self-report: same trust level as the hooks (client-derived counts), but
+// hard server rules keep it honest:
+//   1. once per GitHub account, EVER (backfills row is the lock)
+//   2. only full past days inside the last 7 — never today (hooks own today)
+//   3. only days the user has ZERO tracked events on (no double counting)
+//   4. the normal 500/day counted cap applies; excess is dropped, not stored
+// ts lands at 12:00 UTC so backfilled events can never farm night owl.
+app.post("/api/backfill", async (c) => {
+  if (rateLimited(c, "backfill", 5)) return tooMany(c);
+  const body = await c.req.json().catch(() => ({}));
+  const user = await userByToken(c.env.DB, String(body?.token ?? ""));
+  if (!user) return json(c, { error: "invalid token" }, 401);
+
+  const now = Date.now();
+  const today = utcDay(now);
+  const minDay = utcDay(now - 7 * 86400000);
+  const clamp = (v: unknown, max: number) =>
+    Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+
+  const seen = new Set<string>();
+  const days: { day: string; prompts: number; edits: number; lines: number }[] = [];
+  for (const d of (Array.isArray(body?.days) ? body.days : []).slice(0, 10)) {
+    const day = String(d?.day ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < minDay || day >= today || seen.has(day)) continue;
+    seen.add(day);
+    const prompts = clamp(d?.prompts, 1000);
+    const edits = clamp(d?.edits, 1000);
+    const lines = clamp(d?.lines, 200000);
+    if (prompts + edits > 0) days.push({ day, prompts, edits, lines });
+  }
+  if (!days.length) return json(c, { ok: true, days: 0, prompts: 0, edits: 0 });
+
+  // Claim the once-ever lock FIRST (PK insert = atomic), so two concurrent
+  // requests can't both insert events. Real counts are patched in at the end.
+  const lock = await c.env.DB.prepare(
+    "INSERT OR IGNORE INTO backfills (user_id, at, days, prompts, edits) VALUES (?, ?, 0, 0, 0)"
+  ).bind(user.id, now).run();
+  if (!lock.meta.changes) return json(c, { error: "already_backfilled" }, 409);
+
+  // Rule 3: a day with ANY existing event for this user is skipped whole.
+  const existing = await Promise.all(days.map((d) =>
+    c.env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE user_id = ? AND day = ?")
+      .bind(user.id, d.day).first<{ n: number }>()));
+
+  const ins = c.env.DB.prepare(
+    "INSERT INTO events (user_id, kind, value, day, ts, capped, source) VALUES (?, ?, ?, ?, ?, 0, 'claude')");
+  const stmts: D1PreparedStatement[] = [];
+  let recPrompts = 0, recEdits = 0, recDays = 0;
+  for (let i = 0; i < days.length; i++) {
+    if ((existing[i]?.n ?? 1) > 0) continue;
+    const d = days[i];
+    const ts = Date.parse(d.day + "T12:00:00Z");
+    let left = 500; // rule 4: the day is empty, so the full counted budget
+    const p = Math.min(d.prompts, left); left -= p;
+    const e = Math.min(d.edits, left);
+    // Spread claimed lines evenly across the edit rows we actually insert.
+    const perEdit = e > 0 ? Math.max(1, Math.round(d.lines / d.edits)) : 0;
+    for (let k = 0; k < p; k++) stmts.push(ins.bind(user.id, "prompt", 1, d.day, ts));
+    for (let k = 0; k < e; k++) stmts.push(ins.bind(user.id, "edit", perEdit, d.day, ts));
+    if (p + e > 0) { recPrompts += p; recEdits += e; recDays++; }
+  }
+  for (let i = 0; i < stmts.length; i += 90) await c.env.DB.batch(stmts.slice(i, i + 90));
+  await c.env.DB.prepare(
+    "UPDATE backfills SET days = ?, prompts = ?, edits = ? WHERE user_id = ?"
+  ).bind(recDays, recPrompts, recEdits, user.id).run();
+  return json(c, { ok: true, days: recDays, prompts: recPrompts, edits: recEdits });
+});
+
+// ---- usage (tokens / $) ----------------------------------------------------
+// USAGE_EST: board rows show ~tokens + ~$ per user. REAL cost lives in
+// usage_sessions (statusline reports, Claude Code only) and only exists from
+// USAGE_CUTOFF on. Everything before the cutoff — and all Codex events, which
+// have no statusline — gets a flat estimate from event counts, so existing
+// users don't start the column at zero. Constants are deliberately round
+// (~20k tok per prompt turn, ~6k per edit, ~$2/Mtok blended for cache-heavy
+// Claude Code traffic); the UI shows "~" on every number.
+const USAGE_CUTOFF = "2026-07-22";
+const EST_TOK_PER_PROMPT = 20_000;
+const EST_TOK_PER_EDIT = 6_000;
+const EST_USD_PER_MTOK = 2.0;
+
+// The statusline posts {session_id, cost_usd} whenever the session's
+// cumulative cost grows. MAX on conflict = idempotent, resume-safe, and a
+// replayed old report can never shrink or double a total.
+app.post("/api/usage", async (c) => {
+  if (rateLimited(c, "usage", 30)) return tooMany(c);
+  const body = await c.req.json().catch(() => ({}));
+  const user = await userByToken(c.env.DB, String(body?.token ?? ""));
+  if (!user) return json(c, { error: "invalid token" }, 401);
+  const sid = String(body?.session_id ?? "");
+  if (!/^[A-Za-z0-9._-]{8,64}$/.test(sid)) return json(c, { error: "bad_session" }, 400);
+  const usd = Number(body?.cost_usd);
+  // $2000 ceiling per session: far above any real session, cheap abuse cap.
+  if (!Number.isFinite(usd) || usd <= 0 || usd > 2000) return json(c, { error: "bad_cost" }, 400);
+  await c.env.DB.prepare(`
+    INSERT INTO usage_sessions (user_id, session_id, cost_usd, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, session_id) DO UPDATE SET
+      cost_usd = MAX(cost_usd, excluded.cost_usd), updated_at = excluded.updated_at`)
+    .bind(user.id, sid, Math.round(usd * 100) / 100, Date.now()).run();
+  return json(c, { ok: true });
+});
+
 // ---- boards --------------------------------------------------------------
 // One implementation serves both boards. A board is always "users ranked by
 // their GLOBAL activity"; a room merely filters WHICH users appear.
@@ -450,7 +556,7 @@ async function boardPayload(db: D1Database, code: string | null) {
   // All data queries are independent of each other — run them in ONE
   // parallel wave instead of serially. This is the difference between ~1s and
   // ~200ms page data on D1.
-  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows, recRows, srcRows] = await Promise.all([
+  const [daily, series, whoRows, allTimeRaw, todayRaw, nightRows, recRows, srcRows, estRows, costRows] = await Promise.all([
     hasPop
       ? db.prepare(`
           SELECT day, user_id AS id, COUNT(*) AS score FROM events e
@@ -500,7 +606,42 @@ async function boardPayload(db: D1Database, code: string | null) {
           WHERE 1=1 ${memberFilter} GROUP BY user_id, source`).bind(...bindMembers).all()
           .then((r) => r.results as unknown as { id: number; source: string }[])
       : Promise.resolve([] as { id: number; source: string }[]),
+    // USAGE_EST basis: events with no real cost coverage (pre-cutoff, or
+    // Codex — no statusline). Post-cutoff Claude events are covered by real
+    // usage_sessions reports instead, so the two never double-count.
+    hasPop
+      ? db.prepare(`
+          SELECT user_id AS id,
+                 SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END) AS prompts,
+                 SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END) AS edits
+          FROM events e WHERE e.capped = 0 AND (e.day < ? OR e.source = 'codex') ${memberFilter}
+          GROUP BY user_id`).bind(USAGE_CUTOFF, ...bindMembers).all()
+          .then((r) => r.results as unknown as { id: number; prompts: number; edits: number }[])
+      : Promise.resolve([] as { id: number; prompts: number; edits: number }[]),
+    // Real tracked spend. .catch: table may not exist on an un-migrated DB —
+    // degrade to estimates only, never take the board down.
+    hasPop
+      ? db.prepare(`
+          SELECT user_id AS id, SUM(cost_usd) AS usd FROM usage_sessions e
+          WHERE 1=1 ${memberFilter} GROUP BY user_id`).bind(...bindMembers).all()
+          .then((r) => r.results as unknown as { id: number; usd: number }[])
+          .catch(() => [] as { id: number; usd: number }[])
+      : Promise.resolve([] as { id: number; usd: number }[]),
   ]);
+
+  // tokens/$ per user = estimate over uncovered events + real tracked spend
+  // (real $ converted to tokens at the same blended rate, so one number).
+  const estBy = new Map(estRows.map((r) => [r.id, r]));
+  const usdBy = new Map(costRows.map((r) => [r.id, r.usd || 0]));
+  const usageOf = (id: number) => {
+    const e = estBy.get(id);
+    const estTok = e ? e.prompts * EST_TOK_PER_PROMPT + e.edits * EST_TOK_PER_EDIT : 0;
+    const real = usdBy.get(id) || 0;
+    return {
+      tok: Math.round(estTok + (real / EST_USD_PER_MTOK) * 1e6),
+      usd: Math.round(((estTok / 1e6) * EST_USD_PER_MTOK + real) * 100) / 100,
+    };
+  };
 
   // agents[] per user, from the source stream ('claude' | 'codex'), sorted for
   // a stable render. The board shows a Codex mark when this includes 'codex'.
@@ -605,6 +746,7 @@ async function boardPayload(db: D1Database, code: string | null) {
       const prev = yRank.get(r.id);
       return {
         ...r,
+        ...usageOf(r.id),
         streak: streak.get(r.id) || 0,
         awards: awards.get(r.id) || [],
         records: recsBy.get(r.id) || [],

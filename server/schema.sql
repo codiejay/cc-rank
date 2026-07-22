@@ -79,6 +79,34 @@ CREATE TABLE IF NOT EXISTS chart_weeks (
 );
 CREATE INDEX IF NOT EXISTS idx_chart_user ON chart_weeks(user_id, week);
 
+-- One-shot history backfill receipts: one row per user who has EVER run
+-- /api/backfill (the CLI's one-time import of local Claude Code transcripts
+-- from the 7 days before signup). Existence of the row is the "once per
+-- account" lock; the counts are receipts for what it actually credited.
+CREATE TABLE IF NOT EXISTS backfills (
+  user_id INTEGER PRIMARY KEY,   -- users.github_id
+  at      INTEGER NOT NULL,      -- unix ms of the backfill
+  days    INTEGER NOT NULL,      -- distinct days credited
+  prompts INTEGER NOT NULL,      -- prompt events inserted (counted, not claimed)
+  edits   INTEGER NOT NULL       -- edit events inserted (counted, not claimed)
+);
+
+-- Real per-session spend, reported by the statusline: Claude Code hands the
+-- statusline `cost.total_cost_usd` (cumulative per session), and the client
+-- posts it to /api/usage. One row per (user, session); cost only ratchets up
+-- (MAX on conflict) so re-reports and resumed sessions can never double-count.
+-- Only exists from the feature's launch day on, and only for Claude Code —
+-- older activity and Codex events are covered by a read-time ESTIMATE from
+-- event counts (see USAGE_EST in index.ts), so long-time users don't start at 0.
+CREATE TABLE IF NOT EXISTS usage_sessions (
+  user_id    INTEGER NOT NULL,      -- users.github_id
+  session_id TEXT NOT NULL,         -- Claude Code session uuid
+  cost_usd   REAL NOT NULL,         -- max cumulative cost seen for the session
+  updated_at INTEGER NOT NULL,      -- unix ms of the last report
+  PRIMARY KEY (user_id, session_id)
+);
+CREATE INDEX IF NOT EXISTS idx_usage_user ON usage_sessions(user_id);
+
 -- Product-analytics stream (web funnel). CLI activity lives in `events`; this
 -- records what happens AROUND it: visits, signups vs returning logins, room
 -- creates/joins, share-card unfurls. Append-only, no PII: `actor` is a hash —

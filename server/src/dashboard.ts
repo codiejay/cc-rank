@@ -1319,6 +1319,24 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
     return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fmt(n){ return String(n == null ? 0 : n).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }
+  // tokens/$ are ESTIMATES (see USAGE_EST server-side) — always shown with ~.
+  function fmtTok(n){
+    if (n >= 1e9) return (n/1e9).toFixed(1)+'B';
+    if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if (n >= 1e3) return Math.round(n/1e3)+'k';
+    return String(n);
+  }
+  function fmtUsd(n){
+    if (n >= 100) return '$'+fmt(Math.round(n));
+    if (n >= 10) return '$'+n.toFixed(0);
+    if (n >= 1) return '$'+n.toFixed(1);
+    return '$'+n.toFixed(2);
+  }
+  function usageBit(r){
+    if (!r.tok) return '';
+    return ' \\u00B7 <span class="usage" title="estimated tokens burnt \\u00B7 API-equivalent cost (approximate)">'+
+      '~'+fmtTok(r.tok)+' tok \\u00B7 ~'+fmtUsd(r.usd || 0)+'</span>';
+  }
   function hue(s){ let h = 0; for (let i = 0; i < s.length; i++) h = (h*31 + s.charCodeAt(i)) % 360; return h; }
   // Identity is a verified GitHub account — real avatar (server-provided
   // avatar_url, else github.com/<login>.png), letter fallback if it 404s.
@@ -1519,7 +1537,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
           '<div class="pc-foot">'+
             '<span class="tag">CC-Rank '+(rank ? '#'+rank+'/'+fmt(total) : 'unranked')+'</span>'+
             '<span class="dot">\\u00B7</span>'+
-            '<span>'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</span>'+
+            '<span>'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits'+usageBit(r)+'</span>'+
             '<button class="pc-share" onclick="shMenu(event, \\''+esc(login)+'\\', '+rank+', '+(r.score || 0)+')">'+
               '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '+
               'stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/>'+
@@ -2246,7 +2264,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         '<div class="podnm"><a href="https://github.com/'+encodeURIComponent(login)+
           '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+'</div>'+
         '<div class="podsc">'+fmt(r.score)+'</div>'+
-        '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div>'+
+        '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits'+usageBit(r)+'</div>'+
         ((r.awards||[]).length ? '<div class="podawards">'+awardsHtml(r)+'</div>' : '')+
         '<div class="ped">'+r.rank+'</div>'+
       '</div>';
@@ -2286,7 +2304,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
         '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
-        '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</div></div>'+
+        '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits'+usageBit(r)+'</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
     }).join('');

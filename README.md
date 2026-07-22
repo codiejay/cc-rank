@@ -31,6 +31,12 @@ your rank anytime with `ccrank status` or on the dashboard at
 New machine? Just `ccrank login` again. GitHub is your identity, so there's
 nothing else to recover.
 
+**No fresh start at the bottom:** on sign-in, ccrank offers to backfill your
+last 7 days from your local Claude Code history (`~/.claude/projects`
+transcripts). It sends per-day **counts only, never your code** — one shot per
+account, only for days with no tracked events yet, normal daily caps apply.
+Missed it? `npx github:codiejay/cc-rank backfill`.
+
 To stop: `npx github:codiejay/cc-rank leave`.
 
 > The client defaults to the maintainer's deployed server. To point at your own,
