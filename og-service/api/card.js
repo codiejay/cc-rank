@@ -133,7 +133,7 @@ function card(d, avatar) {
             txt({ fontWeight: 800, fontSize: 20, color: INK, marginLeft: 11 }, "mostcracked"),
           ]),
           txt({ marginLeft: "auto", fontWeight: 600, fontSize: 14,
-                letterSpacing: "0.14em", color: MUTED }, "GLOBAL CLAUDE CODE LEADERBOARD"),
+                letterSpacing: "0.14em", color: MUTED }, "GLOBAL CODING AGENT LEADERBOARD"),
         ]),
 
         div({ flexGrow: 1, alignItems: "center", marginTop: 4 }, [

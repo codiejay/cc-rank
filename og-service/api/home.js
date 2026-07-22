@@ -143,7 +143,7 @@ function poster(d, avatars) {
             txt({ fontWeight: 800, fontSize: 100, color: GOLD, lineHeight: 1.0 }, "?"),
           ]),
           txt({ fontWeight: 600, fontSize: 19, color: MUTED, marginTop: 14 },
-              "the global leaderboard for Claude Code & Codex"),
+              "the global leaderboard for coding agents"),
           div({ marginTop: 22 }, [
             stat(d.stats.prompts, "PROMPTS COUNTED"),
             stat(d.stats.edits, "FILES EDITED"),
@@ -168,7 +168,7 @@ function poster(d, avatars) {
           marginTop: 14 }, [
       txt({ fontWeight: 700, fontSize: 20, color: CORAL }, ">"),
       txt({ fontWeight: 700, fontSize: 20, color: INK, marginLeft: 12 }, "every prompt counts."),
-      txt({ marginLeft: "auto", fontWeight: 700, fontSize: 20, color: MUTED }, d.site || "ccrank"),
+      txt({ marginLeft: "auto", fontWeight: 700, fontSize: 20, color: MUTED }, d.site || "mostcracked.com"),
       div({ width: 11, height: 22, background: CORAL, marginLeft: 10 }),
     ]),
   ]);
