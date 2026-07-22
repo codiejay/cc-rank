@@ -1239,7 +1239,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
             transform: skewX(-12deg); }
   .duelstage { display: grid; grid-template-columns: 340px minmax(0,1fr) 340px; gap: 22px;
                align-items: start; }
-  @media (max-width: 1040px) { .duelstage { grid-template-columns: 1fr; max-width: 400px;
+  /* two 340px cards + gaps need ~1050px of CONTENT, and the sidebar eats 236px
+     of the viewport — stack below that or the scoreline gets crushed. */
+  @media (max-width: 1300px) { .duelstage { grid-template-columns: 1fr; max-width: 400px;
                                margin: 0 auto; } }
   .fcol { display: flex; flex-direction: column; align-items: center; }
   .fc { position: relative; width: 340px; height: 476px; transition: transform .16s ease;
@@ -1353,6 +1355,43 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   .chal:hover { transform: translateY(-1px); border-color: var(--accent); }
   .chal .ava { width: 24px; height: 24px; font-size: 10px; }
   .chal span.r { color: var(--muted); font: 700 10px var(--mono); }
+  /* ---- round-by-round choreography ---- */
+  /* rows wait their turn, then land */
+  .dsrow { opacity: .22; transform: translateY(4px);
+           transition: opacity .32s ease, transform .32s cubic-bezier(.22,1,.36,1); }
+  .dsrow.on { opacity: 1; transform: none; }
+  .dsrow.even .dslab { color: var(--ink3); }
+  /* the winning number takes the round */
+  .dsv.hit { animation: dhit .55s cubic-bezier(.22,1,.36,1); }
+  @keyframes dhit {
+    0% { transform: scale(1); }
+    28% { transform: scale(1.55); text-shadow: 0 0 20px var(--gold-glow); }
+    100% { transform: scale(1); text-shadow: none; }
+  }
+  /* the score ticks up with a thump */
+  .dscore span.bump { display: inline-block; animation: dbump .45s cubic-bezier(.22,1,.36,1); }
+  @keyframes dbump {
+    0% { transform: scale(1); }
+    34% { transform: scale(1.32); color: var(--gold); }
+    100% { transform: scale(1); }
+  }
+  /* the loser's card takes the hit */
+  .fc.shake { animation: dshake .46s cubic-bezier(.36,.07,.19,.97); }
+  @keyframes dshake {
+    12% { transform: translate(-7px, 3px) rotate(-1.1deg); }
+    32% { transform: translate(6px, -3px) rotate(1deg); }
+    52% { transform: translate(-5px, 2px) rotate(-.7deg); }
+    72% { transform: translate(4px, -1px) rotate(.5deg); }
+    100% { transform: none; }
+  }
+  /* the verdict, held back until the last round lands */
+  .dreveal { opacity: 0; transform: translateY(10px);
+             transition: opacity .5s ease, transform .5s cubic-bezier(.22,1,.36,1); }
+  .dreveal.shown { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .dsrow, .dreveal { opacity: 1; transform: none; }
+  }
+
   /* the invite: what a stranger sees under a shared duel */
   .dinv { max-width: 620px; margin: 46px auto 0; text-align: center;
           border-top: 1px solid var(--line); padding-top: 34px; }
@@ -3129,11 +3168,13 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const tb = rb.reduce(function(x, y){ return x + y; }, 0);
     const pa = Math.round(100 * ta / (ta + tb));
     const bars = DSTATS.map(function(s, i){
-      return '<div class="dsrow"><span class="dsv' + (ra[i] >= rb[i] ? ' w' : '') + '">' + ra[i] + '</span>' +
+      const side = ra[i] > rb[i] ? 'a' : ra[i] < rb[i] ? 'b' : 't';
+      return '<div class="dsrow" data-win="' + side + '"><span class="dsv' +
+          (side === 'a' ? ' w' : '') + '">' + ra[i] + '</span>' +
         '<span class="dsbar l"><i data-w="' + ra[i] + '"></i></span>' +
         '<span class="dslab">' + s.k + '</span>' +
         '<span class="dsbar r"><i data-w="' + rb[i] + '"></i></span>' +
-        '<span class="dsv' + (rb[i] >= ra[i] ? ' w' : '') + '">' + rb[i] + '</span></div>'; }).join('');
+        '<span class="dsv' + (side === 'b' ? ' w' : '') + '">' + rb[i] + '</span></div>'; }).join('');
     const recs = DSTATS.map(function(s){
       const va = s.f(A), vb = s.f(B);
       const shown = function(v){ return s.k === 'BRN' ? '~$' + Math.round(v) :
@@ -3142,6 +3183,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         '<span class="c">' + s.lab + '</span>' +
         '<b' + (vb >= va ? ' class="win"' : '') + '>' + shown(vb) + '</b></div>'; }).join('');
     const winner = aWins ? A : B;
+    duelScore = { wa: wa, wb: wb, pa: pa };
     return '<section class="duelpg">' +
       '<div class="duelhd"><div class="eyebrow">The duel</div>' +
         '<div class="duelvs">' +
@@ -3152,16 +3194,16 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         '<div>' + futColHtml(A, aWins) + '</div>' +
         '<div class="dmid">' +
           '<div class="dft">Full time</div>' +
-          '<div class="dscore">' + wa + '<em>–</em>' + wb + '</div>' +
+          '<div class="dscore"><span id="dscA">0</span><em>–</em><span id="dscB">0</span></div>' +
           '<div class="ddom"><span>' + pa + '%</span><span class="bar"><i id="ddomBar" data-w="' + pa + '%"></i></span>' +
             '<span>' + (100 - pa) + '%</span></div>' +
           '<div class="ddomlab">Dominance</div>' +
           '<div style="margin-top:14px">' + bars + '</div>' +
-          '<div class="dwin"><div class="dft">Most cracked</div>' +
+          '<div class="dwin dreveal"><div class="dft">Most cracked</div>' +
             '<div class="dwinname">' + esc(winner.login) + '</div>' +
             '<div class="dwinsub">' + wa + '–' + wb + ' across the six stats</div></div>' +
-          '<div class="drec"><div class="dreccap">— The receipts —</div>' + recs + '</div>' +
-          '<div class="dactions">' +
+          '<div class="drec dreveal"><div class="dreccap">— The receipts —</div>' + recs + '</div>' +
+          '<div class="dactions dreveal">' +
             '<button class="dbtn primary" onclick="dShare(event)">Copy duel link</button>' +
             '<button class="dbtn" onclick="dPick()">Challenge someone else</button>' +
             '<a class="dbtn" href="/">Back to board</a>' +
@@ -3189,6 +3231,69 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<p class="dinv-foot">Only counts leave your machine. ' +
         'Never your code, your prompts, or your file contents.</p>' +
     '</section>';
+  }
+  // Round-by-round reveal: the six stats land one at a time, the winner's
+  // number pops, the LOSER's card takes a hit (shake), and the score ticks up.
+  // Plays once per load; a poll repaint lands on the finished state instead of
+  // replaying it. Reduced motion jumps straight to the result.
+  let duelAnimated = false, duelScore = { wa: 0, wb: 0, pa: 50 };
+  function duelPlay(wa, wb, pa){
+    const rows = [].slice.call(document.querySelectorAll('.dsrow'));
+    const scA = document.getElementById('dscA'), scB = document.getElementById('dscB');
+    const cards = document.querySelectorAll('.fc');
+    const finish = function(){
+      if (scA) scA.textContent = wa;
+      if (scB) scB.textContent = wb;
+      rows.forEach(function(r){ r.classList.add('on'); });
+      document.querySelectorAll('.dsbar i').forEach(function(el){
+        el.style.width = ((+el.getAttribute('data-w') - 40) / 59 * 100) + '%'; });
+      const db = document.getElementById('ddomBar');
+      if (db) db.style.width = pa + '%';
+      document.querySelectorAll('.dreveal').forEach(function(el){ el.classList.add('shown'); });
+    };
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (duelAnimated || reduced || !rows.length) return finish();
+    duelAnimated = true;
+    let a = 0, b = 0, i = 0;
+    const step = function(){
+      if (i >= rows.length){
+        setTimeout(function(){
+          const db = document.getElementById('ddomBar');
+          if (db) db.style.width = pa + '%';
+          document.querySelectorAll('.dreveal').forEach(function(el, n){
+            setTimeout(function(){ el.classList.add('shown'); }, n * 130);
+          });
+        }, 260);
+        return;
+      }
+      const row = rows[i], side = row.getAttribute('data-win');
+      row.classList.add('on');
+      row.querySelectorAll('.dsbar i').forEach(function(el){
+        el.style.width = ((+el.getAttribute('data-w') - 40) / 59 * 100) + '%'; });
+      // the punch lands a beat after the bars start moving
+      setTimeout(function(){
+        if (side === 't'){ row.classList.add('even'); }
+        else {
+          const win = row.querySelector(side === 'a' ? '.dsv:first-child' : '.dsv:last-child');
+          if (win) win.classList.add('hit');
+          const loser = cards[side === 'a' ? 1 : 0];
+          if (loser){
+            loser.classList.add('shake');
+            setTimeout(function(){ loser.classList.remove('shake'); }, 460);
+          }
+          if (side === 'a'){ a++; if (scA){ scA.textContent = a; bump(scA); } }
+          else { b++; if (scB){ scB.textContent = b; bump(scB); } }
+        }
+      }, 300);
+      i++;
+      setTimeout(step, 640);
+    };
+    setTimeout(step, 420);
+  }
+  function bump(el){
+    el.classList.remove('bump');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('bump');
   }
   function dSwap(){
     location.href = '/duel/' + encodeURIComponent(DUEL.b) + '-vs-' + encodeURIComponent(DUEL.a);
@@ -3457,11 +3562,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     if (DUEL){
       content.innerHTML = duelHtml();
       bindDuelTilt();
+      const sc = duelScore;
       requestAnimationFrame(function(){ requestAnimationFrame(function(){
-        const db = document.getElementById('ddomBar');
-        if (db) db.style.width = db.getAttribute('data-w') || '';
-        document.querySelectorAll('.dsbar i').forEach(function(el){
-          el.style.width = ((+el.getAttribute('data-w') - 40) / 59 * 100) + '%'; });
+        duelPlay(sc.wa, sc.wb, sc.pa);
       }); });
       return;
     }
