@@ -39,6 +39,11 @@ Missed it? `npx github:codiejay/cc-rank backfill`.
 
 To stop: `npx github:codiejay/cc-rank leave`.
 
+**Stays fresh by itself:** once a day the installed hook checks this repo's
+latest commit (via the ccrank server, repo hard-pinned client-side) and
+silently re-runs the installer when there's something new. You never run
+`update` by hand again after this version.
+
 > The client defaults to the maintainer's deployed server. To point at your own,
 > set `CCRANK_SERVER=https://your-worker.workers.dev` or pass `--server`.
 

@@ -277,6 +277,30 @@ app.post("/api/events", async (c) => {
   return json(c, { ok: true, recorded: parsed.length });
 });
 
+// ---- version ---------------------------------------------------------------
+// Which commit of the client is current — feeds the daily auto-update check in
+// the installed hook/statusline (update-check.mjs). The client pins the repo;
+// we only ever name a sha, so this can't redirect anyone to other code.
+// KV-cached 1h so GitHub's unauthenticated rate limit is never a factor.
+let verMemo = { at: 0, sha: "" };
+app.get("/api/version", async (c) => {
+  if (verMemo.sha && Date.now() - verMemo.at < 3600_000) return json(c, { sha: verMemo.sha });
+  let sha = (await c.env.OG_KV.get("client:sha")) || "";
+  if (!sha) {
+    try {
+      const res = await fetch("https://api.github.com/repos/codiejay/cc-rank/commits/main", {
+        headers: { accept: "application/vnd.github+json", "user-agent": "ccrank" },
+      });
+      if (res.ok) sha = String(((await res.json()) as any)?.sha || "");
+    } catch { /* fall through */ }
+    if (!/^[0-9a-f]{40}$/.test(sha)) sha = "";
+    if (sha) c.executionCtx.waitUntil(c.env.OG_KV.put("client:sha", sha, { expirationTtl: 3600 }));
+  }
+  if (!sha) return json(c, { error: "unavailable" }, 503);
+  verMemo = { at: Date.now(), sha };
+  return json(c, { sha });
+});
+
 // ---- backfill --------------------------------------------------------------
 // One-time import of a new user's last 7 days of LOCAL Claude Code history
 // (the CLI scans ~/.claude/projects transcripts and sends per-day counts).

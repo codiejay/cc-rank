@@ -11,6 +11,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
 import { scanHistory } from "../lib/backfill.mjs";
+import { recordApplied } from "../lib/update-check.mjs";
 import { execSync, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -223,7 +224,23 @@ async function ensureUser({ force = false } = {}) {
 // Copy hook.mjs + statusline.mjs into ~/.ccrank so Claude Code can run them.
 function installScripts() {
   mkdirSync(CC_DIR, { recursive: true });
-  for (const f of ["hook.mjs", "statusline.mjs"]) copyFileSync(join(PKG_ROOT, "lib", f), join(CC_DIR, f));
+  for (const f of ["hook.mjs", "statusline.mjs", "update-check.mjs"])
+    copyFileSync(join(PKG_ROOT, "lib", f), join(CC_DIR, f));
+}
+
+// Record which commit is now installed so the daily auto-update check doesn't
+// spawn a pointless update. `update --applied-sha <sha>` knows exactly (the
+// auto-updater pins the sha it ran); every other path asks the server,
+// best-effort — worst case is one redundant background update tomorrow.
+async function recordVersion() {
+  if (flags["applied-sha"]) { recordApplied(flags["applied-sha"]); return; }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    const res = await fetch(server + "/api/version", { signal: ctrl.signal });
+    const sha = (await res.json())?.sha;
+    if (sha) recordApplied(sha);
+  } catch { /* cosmetic */ } finally { clearTimeout(timer); }
 }
 
 // Remove any ccrank hook entries from a settings/hooks object, in place. Run
@@ -295,7 +312,7 @@ function wireCodex() {
   return s;
 }
 
-function finishInstall(cfg) {
+async function finishInstall(cfg) {
   installScripts();
   let wrapped = cfg.wrappedStatusLine ?? null;
   if (wantClaude) {
@@ -310,6 +327,7 @@ function finishInstall(cfg) {
     writeFileSync(CODEX_HOOKS, JSON.stringify(cs, null, 2));
   }
   saveConfig({ ...cfg, agent: AGENT, wrappedStatusLine: wrapped });
+  await recordVersion(); // stamp what's installed for the daily auto-update check
   return wrapped;
 }
 
@@ -362,7 +380,7 @@ async function backfillCmd() {
 async function login() {
   const cfg = await ensureUser({ force: true });
   if (!cfg) return;
-  const wrapped = finishInstall(cfg);
+  const wrapped = await finishInstall(cfg);
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  You're on the global board. Every prompt you send and every file`);
   console.log(`  Claude edits scores you a point. Only counts leave your machine, ${c.b("never your code")}.`);
@@ -396,7 +414,7 @@ async function create() {
   }
   const { code } = created;
   // Creating auto-joins you, so wire everything up right away.
-  const wrapped = finishInstall({ ...cfg, roomCode: code, roomName: name });
+  const wrapped = await finishInstall({ ...cfg, roomCode: code, roomName: name });
 
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Room created: ${c.b(name)}. You're in it.`);
@@ -433,7 +451,7 @@ async function joinRoom() {
     throw e;
   }
 
-  const wrapped = finishInstall({ ...cfg, roomCode: res.roomCode, roomName: res.roomName });
+  const wrapped = await finishInstall({ ...cfg, roomCode: res.roomCode, roomName: res.roomName });
 
   console.log(`\n  ${c.g("✓")} Signed in as ${c.y(cfg.login)} ${c.dim("(verified by GitHub)")}`);
   console.log(`  ${c.g("✓")} Joined ${c.b(res.roomName)}`);
@@ -458,7 +476,7 @@ async function joinRoom() {
 async function update() {
   const cfg = loadConfig();
   if (!cfg?.token) return fail("Not signed in yet. Run: ccrank join <CODE>");
-  finishInstall(cfg);
+  await finishInstall(cfg);
   console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts.`);
   // Existing users get their shot at the one-time backfill here — update is
   // the path they already run, and the server rules make it safe (only days
