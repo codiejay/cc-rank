@@ -169,15 +169,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   .nav.static { cursor: default; }
   .nav.static:hover { background: none; }
   .side .spacer { flex: 1; }
-  .peek { display: flex; gap: 6px; padding: 0 4px; }
-  .peek input { flex: 1; width: 40px; font: 12px/1 var(--mono); letter-spacing: .08em;
-                text-transform: uppercase; padding: 8px 10px; border-radius: 8px;
-                border: 1px solid var(--line2); background: var(--card); color: var(--ink); }
-  .peek input::placeholder { color: var(--faint); }
-  .peek input:focus { outline: none; border-color: var(--ink); }
-  .peek button { border: 1px solid var(--line2); background: var(--card); border-radius: 8px;
-                 width: 34px; cursor: pointer; color: var(--muted); }
-  .peek button:hover { color: var(--ink); border-color: var(--ink); }
   .sidefoot { padding: 12px 8px 0; font: 11px/1.6 var(--mono); color: var(--muted); }
   .sidefoot a { text-decoration: none; }
   .sidefoot a:hover { color: var(--ink); }
@@ -1215,9 +1206,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
             flex-wrap: wrap; padding: 10px 16px; overflow: visible; }
     .navsec, .nav:not(.on), .sidefoot, .side .spacer { display: none; }
     .nav.on { margin-left: 10px; }
-    /* the longer wordmark needs the space: the pulse and the room-code form
-       are desktop-only affordances, and neither is load-bearing on a phone. */
-    .livechip, .peek { display: none; }
+    /* the longer wordmark needs the space: the pulse is a desktop-only
+       affordance and isn't load-bearing on a phone. */
+    .livechip { display: none; }
     .brand { padding: 0; }
     .topbar, .content { padding-left: 16px; padding-right: 16px; }
     .grid { grid-template-columns: 1fr; }
@@ -1233,7 +1224,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     /* badge tooltips are absolutely positioned and can poke past the right
        edge while hidden, giving the page a phantom horizontal scroll */
     html, body { overflow-x: clip; }
-    .peek input { flex: none; width: 58px; }
     .content { padding-top: 18px; padding-bottom: 48px; }
     .cardhead { padding: 16px 16px 6px; }
     .podium { grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 20px 16px;
@@ -1673,13 +1663,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     <a class="nav" id="navChart" href="/chart">
       <svg viewBox="0 0 24 18" fill="currentColor" aria-hidden="true" style="padding:1px 0"><path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/><rect x="3.5" y="16" width="17" height="1.8" rx=".9"/></svg>
       the weekly 25</a>
-    <div class="navsec">Rooms <span class="cnt" id="roomCnt"></span></div>
-    <div id="navRooms"></div>
     <div class="spacer"></div>
-    <form class="peek" onsubmit="go(event)" title="view any room by code">
-      <input id="codeInput" placeholder="CODE" maxlength="6" autocomplete="off" />
-      <button type="submit" aria-label="view board">&#8594;</button>
-    </form>
     <div class="sidefoot"><a href="https://github.com/codiejay/cc-rank">github &#8599;</a>
       &nbsp;&middot;&nbsp; counts only, never code</div>
   </aside>
@@ -1775,11 +1759,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     if ((ev.newValue === 'light' || ev.newValue === 'dark') && ev.newValue !== themeNow())
       applyTheme(ev.newValue);
   });
-
-  function go(e){ e.preventDefault();
-    const v = document.getElementById('codeInput').value.trim().toUpperCase();
-    if (v) location.href = '/r/' + v;
-  }
 
   // ---- small utils ---------------------------------------------------------
   function shq(s){ return /[^A-Za-z0-9_.-]/.test(s) ? '"' + s.replace(/"/g,'') + '"' : s; }
@@ -2202,7 +2181,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   // Agent-aware setup prompt. agent is 'claude' | 'codex' | 'both' and only
   // changes the install flag + the "restart X" wording — one CLI, one hook,
   // one identity across agents. Scores merge; the board just marks Codex users.
-  function agentPrompt(code, roomName, agent){
+  function agentPrompt(code, agent){
     agent = agent === 'codex' || agent === 'both' ? agent : 'claude';
     const S = location.origin;
     const AG = agent === 'codex' ? ' --agent codex' : agent === 'both' ? ' --agent both' : '';
@@ -2210,23 +2189,27 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const board = agent === 'claude' ? 'the global Claude Code leaderboard'
       : 'the global leaderboard for Claude Code and Codex';
     const head = code
-      ? 'Help me join a ccrank room ('+board+'). Room code: '+code+'. My flow is JOIN, so skip the flow question.'
-      : roomName
-      ? 'Help me set up ccrank ('+board+'). My flow is CREATE with the room name \\"'+String(roomName).replace(/"/g, '')+'\\". Skip the flow question and do not ask me for a name.'
-      : 'Help me set up ccrank ('+board+'). First ask me ONE question and wait for my answer. Which flow do I want:\\n  (a) GET ON THE BOARD (the default): sign in with GitHub; I compete on the global leaderboard with every ccrank user. No room needed.\\n  (b) JOIN a private room: then ask me for the 6-character room code.\\n  (c) CREATE a private room for my crew: then ask me what to call it (if I defer with something like \\"you pick\\", choose a short fun room name yourself, no need to ask again).';
-    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score; rooms are optional private groups viewing the same per-user stream. When you ask me to pick between fixed options (like the flow choice), use your interactive multiple-choice prompt if you have one (e.g. AskUserQuestion) so I can pick with the arrow keys; otherwise just ask me plainly. Only free-text answers like a room name need a typed reply.\\n\\nFollow these steps exactly, in order:\\n'+
-      '1. If CREATE: check the room name is free with GET '+S+'/api/check-room?name=<ROOM NAME, url-encoded>. If \\"reason\\":\\"room_name_taken\\" -> tell me that room name is taken (they are globally unique), ask for another, and re-check until \\"ok\\":true.\\n'+
-      '2. If JOIN: verify the room exists with GET '+S+'/api/rooms/<CODE>/check. If \\"reason\\":\\"room_not_found\\" -> tell me the code looks wrong and stop.\\n'+
-      '3. Run the setup IN THE BACKGROUND so you can read its output while it waits. GET ON THE BOARD: npx github:codiejay/cc-rank login'+AG+'. JOIN: npx github:codiejay/cc-rank join <CODE>'+AG+'. CREATE: npx github:codiejay/cc-rank create --name \\"<ROOM NAME>\\"'+AG+' (creating auto-joins me, so no separate join needed).\\n'+
-      '4. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard, so just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this. I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
-      '5. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
-      '6. When it finishes, show me what it printed: my verified GitHub login, plus the room code + dashboard link if a room was involved (global board link otherwise).\\n'+
-      '7. BACKFILL so I do not start at the bottom of the board: setup auto-imports my last 7 days from my LOCAL '+tool+' history (per-day counts only, never my code; one shot per GitHub account; server-enforced so it can never double-count). Find the \\"Backfilled\\" line in the output and tell me exactly what it credited, e.g. \\"backfilled 120 prompts + 80 edits from your last 7 days\\". If the output mentions no backfill at all, run npx github:codiejay/cc-rank backfill in the background, wait for it to finish, and relay its result. If it says nothing was credited or already backfilled, just tell me that plainly.\\n'+
-      '8. Tell me to restart '+tool+' so my prompts and edits start counting.';
+      ? 'Help me set up ccrank ('+board+') with the invite code '+code+'. Skip any flow questions.'
+      : 'Help me set up ccrank ('+board+').';
+    const preflight = code
+      ? '1. Verify the invite is valid with GET '+S+'/api/rooms/'+code+'/check. If \\"reason\\":\\"room_not_found\\" -> tell me the invite code looks wrong and stop.\\n'
+      : '';
+    const cmd = code
+      ? 'npx github:codiejay/cc-rank join '+code+AG
+      : 'npx github:codiejay/cc-rank login'+AG;
+    let n = code ? 1 : 0;
+    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score. When you ask me to pick between fixed options, use your interactive multiple-choice prompt if you have one (e.g. AskUserQuestion) so I can pick with the arrow keys; otherwise just ask me plainly.\\n\\nFollow these steps exactly, in order:\\n'+
+      preflight+
+      (++n)+'. Run the setup IN THE BACKGROUND so you can read its output while it waits: '+cmd+'.\\n'+
+      (++n)+'. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard, so just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this. I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
+      (++n)+'. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
+      (++n)+'. When it finishes, show me what it printed: my verified GitHub login and the dashboard link.\\n'+
+      (++n)+'. BACKFILL so I do not start at the bottom of the board: setup auto-imports my last 7 days from my LOCAL '+tool+' history (per-day counts only, never my code; one shot per GitHub account; server-enforced so it can never double-count). Find the \\"Backfilled\\" line in the output and tell me exactly what it credited, e.g. \\"backfilled 120 prompts + 80 edits from your last 7 days\\". If the output mentions no backfill at all, run npx github:codiejay/cc-rank backfill in the background, wait for it to finish, and relay its result. If it says nothing was credited or already backfilled, just tell me that plainly.\\n'+
+      (++n)+'. Tell me to restart '+tool+' so my prompts and edits start counting.';
   }
   // Three-way copy control: Claude Code / Codex / Both. Each button copies the
   // prompt tailored to that agent and lights up as the active choice. codeExpr
-  // is a room-code expression (invite flow) or 'null' (get-on-board).
+  // is an invite-code expression (invite flow) or 'null' (get-on-board).
   function agentPicker(outId, codeExpr){
     const btn = function(ag, label, glyph){
       return '<button class="apick'+(ag==='claude'?' on':'')+'" data-agent="'+ag+'" '+
@@ -2243,7 +2226,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '</div>'+
       '<div class="apickhint">Pick your agent \\u2014 it copies a setup prompt to paste into it.</div>';
   }
-  // Last agent chosen in a picker — the "by hand" join/create panels inherit it.
   let PICKED_AGENT = 'claude';
   function copyAgentFor(ev, agent, outId, code){
     PICKED_AGENT = agent;
@@ -2254,40 +2236,10 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     }
     const out = document.getElementById(outId);
     const label = agent === 'codex' ? 'Codex' : agent === 'both' ? 'Claude Code or Codex' : 'Claude Code';
-    navigator.clipboard.writeText(agentPrompt(code || null, null, agent)).then(function(){
+    navigator.clipboard.writeText(agentPrompt(code || null, agent)).then(function(){
       msg(out, 'ok', 'Copied. Paste it into '+label+(code ? ' to join.' : '.'));
     }, function(){ msg(out, 'err', 'couldn\\u2019t copy. is the page focused?'); });
     return false;
-  }
-
-  // Prompt-first (James: "it's a prompt!"): these panels validate the input,
-  // then copy the AGENT PROMPT with the room baked in — never a raw command.
-  async function genJoin(){
-    const out = document.getElementById('jOut');
-    const code = document.getElementById('jCode').value.trim().toUpperCase();
-    if (!code) return msg(out, 'err', 'Enter the room code first.');
-    msg(out, 'ok', 'checking…');
-    try {
-      const room = await (await fetch('/api/rooms/'+code+'/check')).json();
-      if (room.reason === 'room_not_found') return msg(out, 'err', 'Room '+code+' not found. Double-check the code.');
-      navigator.clipboard.writeText(agentPrompt(code, null, PICKED_AGENT)).then(function(){
-        msg(out, 'ok', 'Prompt copied. Paste it into your agent. You\\u2019re joining '+(room.roomName||code)+', and your global score comes with you.');
-      }, function(){ msg(out, 'err', 'Couldn\\u2019t copy. Is the page focused?'); });
-    } catch { msg(out, 'err', 'Couldn\\u2019t reach the server. Try again.'); }
-  }
-
-  async function genCreate(){
-    const out = document.getElementById('cOut');
-    const room = document.getElementById('cRoom').value.trim();
-    if (!room) return msg(out, 'err', 'Give your room a name.');
-    msg(out, 'ok', 'checking…');
-    try {
-      const r = await (await fetch('/api/check-room?name='+encodeURIComponent(room))).json();
-      if (r.reason === 'room_name_taken') return msg(out, 'err', 'A room called "'+room+'" already exists. Room names are unique, so pick another.');
-      navigator.clipboard.writeText(agentPrompt(null, room, PICKED_AGENT)).then(function(){
-        msg(out, 'ok', 'Prompt copied. Paste it into your agent to create \\u201C'+room+'\\u201D.');
-      }, function(){ msg(out, 'err', 'Couldn\\u2019t copy. Is the page focused?'); });
-    } catch { msg(out, 'err', 'Couldn\\u2019t reach the server. Try again.'); }
   }
 
   // ---- chart: daily columns of stacked square dots -------------------------
@@ -2767,12 +2719,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<span>Restart Claude Code and send a prompt. It shows up here in seconds.</span></div>';
     const max = maxScore != null ? maxScore : rows[0].score;
     return rows.map(function(r, i){
-      // Room chips are labels only — no links, no codes. Codes are join
-      // credentials: you get one from a friend, never from this page.
-      const chips = withRoom
-        ? (r.rooms || []).map(function(nm){
-            return '<span class="chip">'+esc(nm)+'</span>';
-          }).join('') : '';
       const streak = r.streak >= 2 ? '<span class="streak">\\uD83D\\uDD25 '+r.streak+'d</span>' : '';
       let delta = '';
       if (r.delta != null && r.delta > 0) delta = '<span class="delta up" title="up '+r.delta+' since yesterday">\\u25B2'+r.delta+'</span>';
@@ -2786,7 +2732,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+duelBtnHtml(login)+awardsHtml(r)+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+duelBtnHtml(login)+awardsHtml(r)+streak+delta+'</div>'+
         '<div class="meta"><span class="mseg">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</span>'+usageBit(r)+'</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
@@ -3085,7 +3031,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const head = who ? 'You&rsquo;re in as @'+esc(who.login) : 'Get on the board';
     const tag  = who ? 'Signed in' : 'Start here';
     const hint = who
-      ? 'Your prompts and edits are scoring on the global board. Want a private view for your crew? Make a room below.'
+      ? 'Your prompts and edits are scoring on the global board. Keep shipping.'
       : 'One prompt in Claude Code sets this up. Sign in with GitHub (real auth, no typed names) and you&rsquo;re on the global board with every ccrank user.';
     return '<section class="onboard"><div class="onb-in">'+
       '<div class="onb-head">'+claudeBurst('burst-ico')+'<h3>'+head+'</h3>'+
@@ -3094,14 +3040,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<p class="hint">'+hint+'</p>'+
       agentPicker('aOut', 'null')+
       '<div id="aOut" style="margin-bottom:10px"></div>'+
-      '<details><summary>Join a room by hand</summary><div class="fields">'+
-        '<input id="jCode" class="up" placeholder="ROOM CODE" maxlength="6" autocomplete="off" />'+
-        '<button class="btn ghost" onclick="genJoin()">Copy the agent prompt</button>'+
-        '<div id="jOut"></div></div></details>'+
-      '<details><summary>Create a room</summary><div class="fields">'+
-        '<input id="cRoom" placeholder="room name" maxlength="60" autocomplete="off" />'+
-        '<button class="btn ghost" onclick="genCreate()">Copy the agent prompt</button>'+
-        '<div id="cOut"></div></div></details>'+
       '</div></div></section>';
   }
   function howCard(){
@@ -3109,7 +3047,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<div class="pad" style="padding-top:6px">'+
       '<div class="scorehow"><kbd>prompt sent</kbd> to Claude Code <span class="pt">+1</span></div>'+
       '<div class="scorehow"><kbd>file edited</kbd> by Claude <span class="pt">+1</span></div>'+
-      '<div class="scorehow" style="color:var(--muted)">one global score, the same in every room</div>'+
       '<div class="scorehow" style="color:var(--muted)">counts only. your code never leaves your machine</div>'+
       '</div></section>';
   }
@@ -3121,12 +3058,11 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<div class="pad">'+
       '<div class="codebox'+(revealed ? ' open' : '')+'" onclick="copyCode()" '+
         (revealed ? 'title="click to copy"' : '')+'><div class="c codeval">'+esc(CODE)+'</div>'+
-        '<div class="h" id="codeHint">room code &middot; click to copy</div>'+
+        '<div class="h" id="codeHint">invite code &middot; click to copy</div>'+
         (revealed ? '' : '<div class="veil"><button class="reveal" '+
           'onclick="revealCode(event)">Reveal code</button></div>')+
       '</div>'+
       agentPicker('rOut', 'CODE')+
-      '<a class="btn ghost" href="/?join='+esc(CODE)+'">Open the join page</a>'+
       '<div id="rOut"></div>'+
       '</div></section>';
   }
@@ -3146,7 +3082,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       document.getElementById('codeHint').textContent = 'copied!';
       setTimeout(function(){
         const el = document.getElementById('codeHint');
-        if (el) el.innerHTML = 'room code &middot; click to copy';
+        if (el) el.innerHTML = 'invite code &middot; click to copy';
       }, 1500);
     });
   }
@@ -3191,41 +3127,15 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   function renderSide(){
     document.getElementById('navHome').className = 'nav' + (CODE || CHARTPG ? '' : ' on');
     document.getElementById('navChart').className = 'nav' + (CHARTPG ? ' on' : '');
-    if (!GLOBAL){ // first fetch in flight — ghost room pills, not an empty list
-      document.getElementById('roomCnt').textContent = '';
-      document.getElementById('navRooms').innerHTML = [70,54,84].map(function(w){
-        return '<div class="nav static"><span class="sk" style="width:9px;height:9px;border-radius:3px;flex:none"></span>'+
-          '<span class="sk" style="width:'+w+'px;height:11px"></span></div>';
-      }).join('');
-      return;
-    }
-    // Directory shows room NAMES only. Entries become links only for rooms
-    // this browser already knows the code to (currently viewed, or visited
-    // before and remembered locally).
-    const rooms = (GLOBAL && GLOBAL.roomsList) || [];
-    document.getElementById('roomCnt').textContent = rooms.length || '';
-    const current = (CODE && ROOM && ROOM.room) ? ROOM.room.name : null;
-    const known = knownRooms();
-    document.getElementById('navRooms').innerHTML = rooms.map(function(r){
-      const h = hue(String(r.name).toLowerCase());
-      const dot = '<span class="rdot" style="background:hsl('+h+',55%,62%)"></span>';
-      if (current && r.name === current)
-        return '<a class="nav on" href="/r/'+encodeURIComponent(CODE)+'">'+dot+esc(r.name)+
-          '</a>';
-      if (known[r.name])
-        return '<a class="nav" href="/r/'+encodeURIComponent(known[r.name])+'">'+dot+esc(r.name)+'</a>';
-      return '<div class="nav static" title="joining needs a code from a member">'+dot+esc(r.name)+'</div>';
-    }).join('');
-    document.getElementById('navHome').className = 'nav' + (CODE || CHARTPG ? '' : ' on');
   }
   function renderTop(){
     const crumb = document.getElementById('crumb');
-    if (NOTFOUND) crumb.innerHTML = 'Room not found';
-    // Never render the room code in the crumb — it's a join credential and
+    if (NOTFOUND) crumb.innerHTML = 'Not found';
+    // Never render the invite code in the crumb — it's a join credential and
     // the topbar is on screen through every screenshare. Sharing happens via
     // the invite card's deliberate frosted-glass reveal only.
     else if (CODE && ROOM) crumb.innerHTML = esc(ROOM.room.name);
-    else if (CODE) crumb.textContent = 'Room';
+    else if (CODE) crumb.textContent = 'Board';
     else if (DUEL) crumb.textContent = 'Duel';
     else if (CHARTPG) crumb.textContent = 'the weekly 25';
     else crumb.textContent = 'Global';
@@ -4148,17 +4058,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     if (grp) grp.querySelectorAll('.hagent').forEach(function(b){ b.classList.toggle('on', b === btn); });
     const label = btn.querySelector('.hlbl');
     const orig = agent === 'codex' ? 'Copy Codex prompt' : agent === 'both' ? 'Copy Both prompt' : 'Copy Claude Code prompt';
-    navigator.clipboard.writeText(agentPrompt(null, null, agent)).then(function(){
+    navigator.clipboard.writeText(agentPrompt(null, agent)).then(function(){
       if (label){ label.textContent = 'Copied!'; setTimeout(function(){ label.textContent = orig; }, 2000); }
     });
-  }
-  function jumpTo(which){
-    const d = document.querySelectorAll('.onboard details')[which === 'join' ? 0 : 1];
-    if (d) d.open = true;
-    const card = document.querySelector('.onboard');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const inp = document.getElementById(which === 'join' ? 'jCode' : 'cRoom');
-    if (inp) setTimeout(function(){ inp.focus({ preventScroll: true }); }, 450);
   }
 
   // ---- skeleton loading ----------------------------------------------------
@@ -4288,20 +4190,15 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   }
   function paint(){
     const data = CODE ? ROOM : GLOBAL;
-    // GLOBAL.roomsList must be part of the key: on room pages the sidebar is
-    // fed by GLOBAL while the main content is ROOM — if the room fetch wins
-    // the race, the later GLOBAL arrival must still trigger a repaint or the
-    // sidebar stays skeleton forever.
-    const key = JSON.stringify([CODE, mode, metric, NOTFOUND, ME, ME_WHO, data,
-      DUEL, GLOBAL && GLOBAL.roomsList]);
+    const key = JSON.stringify([CODE, mode, metric, NOTFOUND, ME, ME_WHO, data, DUEL]);
     if (key === lastKey) return; // nothing changed — don't repaint the poll
     lastKey = key;
     measure(); // fluid chart + meter sizing from the current viewport
     renderSide(); renderTop();
     const content = document.getElementById('content');
     if (NOTFOUND){
-      content.innerHTML = '<section class="card notfound"><b>No room answers to '+esc(CODE)+'.</b>'+
-        '<span>Double-check the code, or <a href="/">start a new room</a>.</span></section>';
+      content.innerHTML = '<section class="card notfound"><b>Nothing lives at '+esc(CODE)+'.</b>'+
+        '<span>Double-check the link, or head <a href="/">back to the board</a>.</span></section>';
       return;
     }
     if (!data){ // first fetch still in flight — show skeletons, not a blank page
@@ -4353,22 +4250,12 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     bindChart();
     if (!CODE) w25AfterPaint();
     boardAnimated = true;
-    // Arriving via an invite link? Prefill the join code inside the details.
+    // Legacy ?join=CODE invite links: the join UI is gone from the homepage,
+    // so send the visitor straight to the board it unlocks.
     if (!CODE){
       const pre = new URLSearchParams(location.search).get('join');
       if (pre && !prefilled){ prefilled = true;
-        // Scrub ?join=CODE from the address bar immediately — the code now
-        // lives only in the input below. Same hygiene as ?me=: nothing
-        // sensitive lingers in the URL for screenshares or copied links.
-        try {
-          const u = new URL(location.href);
-          u.searchParams.delete('join');
-          history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
-        } catch { /* cosmetic */ }
-        const d = document.querySelectorAll('details')[0];
-        if (d) d.open = true;
-        const jc = document.getElementById('jCode');
-        if (jc){ jc.value = pre.toUpperCase(); jc.focus(); }
+        if (/^[A-Za-z0-9]{1,6}$/.test(pre)) location.replace('/r/' + pre.toUpperCase());
       }
     }
   }
