@@ -130,7 +130,7 @@ function card(d, avatar) {
         div({ alignItems: "center", width: "100%" }, [
           div({ alignItems: "center" }, [
             el("img", {}, undefined, { src: LOGO, width: 30, height: 30 }),
-            txt({ fontWeight: 800, fontSize: 23, color: INK, marginLeft: 11 }, "ccrank"),
+            txt({ fontWeight: 800, fontSize: 20, color: INK, marginLeft: 11 }, "mostcracked"),
           ]),
           txt({ marginLeft: "auto", fontWeight: 600, fontSize: 14,
                 letterSpacing: "0.14em", color: MUTED }, "GLOBAL CLAUDE CODE LEADERBOARD"),

@@ -37,7 +37,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
 <meta name="theme-color" content="#F4F3EF" />${ogTags}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='106 106 300 300'%3E%3Cg fill='%23736C5D'%3E%3Crect x='118' y='318' width='76' height='76' rx='19'/%3E%3Crect x='118' y='218' width='76' height='76' rx='19'/%3E%3Crect x='318' y='318' width='76' height='76' rx='19'/%3E%3C/g%3E%3Cg fill='%23D97757'%3E%3Crect x='218' y='318' width='76' height='76' rx='19'/%3E%3Crect x='218' y='218' width='76' height='76' rx='19'/%3E%3Crect x='218' y='118' width='76' height='76' rx='19'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-<title>ccrank · the global Claude Code leaderboard</title>
+<title>mostcracked · the global leaderboard for Claude Code &amp; Codex</title>
 <script>
   // Theme before first paint (no light flash). One-time hard reset: this push
   // forces dark on EVERYONE once (even returning users who'd picked light),
@@ -89,6 +89,11 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     --veil1:rgba(255,255,255,.28); --veil2:rgba(255,255,255,.08);
     --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    /* condensed grotesk for the FUT-cut duel cards — the real ones are set in
+       DIN Condensed, so fall through the condensed faces that actually ship on
+       macOS/Windows/Android before giving up to the system sans. */
+    --cond: 'Saira Condensed','Barlow Condensed','Roboto Condensed','Oswald',
+            'Arial Narrow','Helvetica Neue Condensed',var(--sans);
     --shadow: 0 1px 2px rgba(35,28,15,.04), 0 0 0 1px var(--line);
   }
   /* Dark: warm charcoal, same DNA — espresso greige grounds, cream ink, the
@@ -135,7 +140,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
   .mark { display: grid; place-items: center; flex: none; }
   .mark svg { width: 26px; height: 26px; display: block; }
-  .brand b { font-size: 15px; letter-spacing: -.01em; }
+  .brand b { font-size: 15px; letter-spacing: -.02em; white-space: nowrap; }
   .livechip { margin-left: auto; display: flex; align-items: center; gap: 6px;
               font: 10px/1 var(--mono); letter-spacing: .1em; color: var(--muted); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--up);
@@ -324,6 +329,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           animation-delay: calc(var(--i, 0) * .3s); }
   @keyframes glint { 0% { background-position: 115% 0; } 100% { background-position: -115% 0; } }
   @media (prefers-reduced-motion: reduce) { .meta { color: var(--ink2); background: none; } }
+  /* stat-line segments never break mid-phrase — a wrap happens between
+     "prompts · edits" and "tok · $", never inside either */
+  .mseg, .usage { white-space: nowrap; }
   .chip { font: 10px/1 var(--mono); color: var(--muted); border: 1px solid var(--line2);
           border-radius: 999px; padding: 3px 7px; text-decoration: none; white-space: nowrap; }
   .streak { font: 700 10.5px/1 var(--mono); color: var(--accent-deep);
@@ -677,6 +685,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,.08); }
 
   .w25 { margin-bottom: 20px; }
+  /* homepage: the weekly-25 block now trails the leaderboard grid, so it
+     needs the gap on top instead of relying on the hero's spacing above */
+  .grid + .w25tease, .grid + .w25lock, .grid + .w25 { margin-top: 20px; }
   .w25card { background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
              overflow: hidden; }
   .w25wash { position: relative; height: 152px; overflow: hidden; background: #C05F33; }
@@ -1147,10 +1158,12 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     .side { position: static; height: auto; flex-direction: row; align-items: center;
             flex-wrap: wrap; padding: 10px 16px; overflow: visible; }
-    .brand { padding: 0; }
     .navsec, .nav:not(.on), .sidefoot, .side .spacer { display: none; }
     .nav.on { margin-left: 10px; }
-    .peek { margin-left: auto; }
+    /* the longer wordmark needs the space: the pulse and the room-code form
+       are desktop-only affordances, and neither is load-bearing on a phone. */
+    .livechip, .peek { display: none; }
+    .brand { padding: 0; }
     .topbar, .content { padding-left: 16px; padding-right: 16px; }
     .grid { grid-template-columns: 1fr; }
   }
@@ -1187,15 +1200,22 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
             gap: 11px; padding: 12px 16px; }
     .meter { display: none; }
     .sc { font-size: 14px; }
-    /* tok/$ made the stat line long — wrap it instead of clipping offscreen
-       (width:max-content + the overflow-x clip above = chopped "~$4…") */
-    .meta { width: auto; white-space: normal; line-height: 1.6; }
-    .podmeta { line-height: 1.6; }
-    /* the name cluster: smaller pills + tighter gaps so a decorated row
-       stacks neatly (name line, pill line, stat line) instead of sprawling */
+    /* tok/$ made the stat line long — flex-wrap it in clean segments: the
+       middot between segments hides and the gap takes over, so a wrap never
+       strands a "·" at a line edge (width:max-content + the overflow-x clip
+       above used to chop "~$4…" offscreen) */
+    .meta { width: auto; display: flex; flex-wrap: wrap; gap: 3px 10px; line-height: 1.35; }
+    .podmeta { display: flex; flex-wrap: wrap; justify-content: center;
+               gap: 3px 10px; line-height: 1.35; }
+    .meta .msep, .podmeta .msep { display: none; }
+    /* the name cluster: award pills go ICON-ONLY — the gold glyph + ×N chip
+       carries the trophy at a glance; labels were the width hogs ("DAILY
+       DRIVER" et al). Tap opens the card, where every pill is spelled out. */
     .nm { gap: 4px 6px; }
-    .award { font-size: 8.5px; padding: 2.5px 6px 2.5px 5px; letter-spacing: .05em; }
-    .awx { font-size: 7.5px; }
+    .nm .award .awlb, .podawards .award .awlb { display: none; }
+    .nm .award, .podawards .award { padding: 3.5px 5.5px; gap: 3px; }
+    .nm .award > svg, .podawards .award > svg { width: 12px; height: 12px; }
+    .awx { font-size: 7.5px; margin-left: 0; }
     .chip { font-size: 9px; padding: 2.5px 6px; }
     .streak { font-size: 9.5px; padding: 2.5px 6px; }
     .pastbtn { padding: 1px 3px; }
@@ -1245,127 +1265,228 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     .ht-body { font: min(12.5px, 3.2vw)/1.85 var(--mono); padding: 10px 12px 11px; }
     .slwrap { font-size: min(12px, 3.05vw); }
   }
-  /* ---- duel: TOTY-cut cards + head-to-head ------------------------------- */
+  /* ---- duel: FUT-cut cards + head-to-head --------------------------------
+     The card is a container: ONE width drives everything inside it, because
+     every position/size in there is a % of the frame or a cqw (1% of the card's
+     own width). So the same markup is a 150px thumbnail on a phone and a 300px
+     hero on a desktop with no second set of numbers to keep in sync. */
   .duelpg { padding-bottom: 40px; }
-  .duelhd { text-align: center; margin: 4px 0 22px; }
-  .duelhd .eyebrow { font-size: 11px; letter-spacing: .3em; color: var(--accent);
-                     font-weight: 800; text-transform: uppercase; }
-  .duelvs { display: flex; align-items: center; justify-content: center; gap: 16px;
-            margin-top: 12px; flex-wrap: wrap; }
-  .duelvs .duelname { font: 800 clamp(20px,3.4vw,34px)/1.1 var(--sans); letter-spacing: .02em;
-                      text-transform: uppercase; color: var(--ink); background: none;
-                      border: 0; padding: 0; cursor: pointer; }
-  .duelvs .duelname:hover { color: var(--accent); }
-  .vsbolt { font-size: clamp(15px,2.2vw,22px); font-weight: 800; color: #fff;
-            background: var(--accent); padding: 4px 12px; border-radius: 6px;
-            transform: skewX(-12deg); }
-  .duelstage { display: grid; grid-template-columns: 340px minmax(0,1fr) 340px; gap: 22px;
-               align-items: start; }
-  /* two 340px cards + gaps need ~1050px of CONTENT, and the sidebar eats 236px
-     of the viewport — stack below that or the scoreline gets crushed. */
-  @media (max-width: 1300px) { .duelstage { grid-template-columns: 1fr; max-width: 400px;
-                               margin: 0 auto; } }
-  .fcol { display: flex; flex-direction: column; align-items: center; }
-  .fc { position: relative; width: 340px; height: 476px; transition: transform .16s ease;
-        filter: drop-shadow(0 22px 34px rgba(0,0,0,.5)); }
-  .fc.win { filter: drop-shadow(0 22px 34px rgba(0,0,0,.5))
-                    drop-shadow(0 0 40px rgba(230,182,85,.32)); }
-  .cardsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .fcart { position: absolute; top: 54px; left: 59%; transform: translateX(-45%);
-           width: 162px; height: 162px; object-fit: cover; z-index: 2;
-           filter: drop-shadow(0 16px 30px rgba(0,0,0,.6)) saturate(1.06);
-           -webkit-mask-image: linear-gradient(180deg,#000 80%,transparent 100%);
-           mask-image: linear-gradient(180deg,#000 80%,transparent 100%); }
-  .fccrown { position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
-              width: 42px; z-index: 6; color: var(--gold);
-              filter: drop-shadow(0 3px 8px rgba(0,0,0,.55)); }
-  .fccrown svg { width: 100%; height: auto; display: block; }
+  .duelhd { margin: 2px 0 26px; }
+  /* the fight poster: one banner, split down a skewed seam, each corner washed
+     in its own colour so the whole page's gold-vs-coral coding starts here */
+  .dband { position: relative; display: flex; align-items: center; justify-content: center;
+           overflow: hidden; border: 1px solid var(--line); border-radius: 18px;
+           background: var(--card); padding: clamp(14px,2vw,22px) clamp(8px,1.6vw,20px); }
+  .dband::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(100deg, var(--gold-soft) 0%, transparent 44%,
+                transparent 56%, rgba(217,119,87,.15) 100%); }
+  .dband::after { content: ''; position: absolute; top: -30%; bottom: -30%; left: 50%;
+    width: 1px; transform: translateX(-50%) rotate(11deg);
+    background: linear-gradient(180deg,transparent,var(--line2),transparent); }
+  .dcorner { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; background: none;
+             border: 0; padding: 0; cursor: pointer; display: flex; flex-direction: column;
+             gap: 6px; }
+  .dcorner.a { align-items: flex-end; text-align: right; }
+  .dcorner.b { align-items: flex-start; text-align: left; }
+  .dcorner .duelname { font: 800 clamp(15px,2.4vw,30px)/1.1 var(--cond); letter-spacing: .03em;
+                       text-transform: uppercase; max-width: 100%; overflow: hidden;
+                       text-overflow: ellipsis; white-space: nowrap; }
+  .dcorner.a .duelname { color: var(--gold); }
+  .dcorner.b .duelname { color: var(--accent); }
+  .dcorner .seed { font: 700 10px/1 var(--mono); letter-spacing: .16em; color: var(--muted);
+                   text-transform: uppercase; white-space: nowrap; }
+  .dcorner:hover .duelname { filter: brightness(1.2); }
+  .vsbolt { position: relative; z-index: 1; flex: none; margin: 0 clamp(8px,1.8vw,26px);
+            padding: 7px 12px; border: 1px solid var(--line2); border-radius: 9px;
+            background: var(--bg); transform: skewX(-11deg);
+            font: italic 800 clamp(13px,1.7vw,19px)/1 var(--sans); color: var(--ink); }
+  .vsbolt b { display: block; transform: skewX(11deg); letter-spacing: .04em; }
+
+  /* Phone/tablet: the two cards share the top row (they're the point — you want
+     them next to each other), the scoreline runs full width beneath. Desktop
+     puts the scoreline back between them. */
+  .duelstage { display: grid; gap: 30px 14px; align-items: start;
+               grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+               grid-template-areas: 'a b' 'mid mid'; }
+  .dcol-a { grid-area: a; } .dcol-b { grid-area: b; }
+  .dmid { grid-area: mid; text-align: center; width: 100%; max-width: 460px;
+          margin: 0 auto; min-width: 0; }
+  @media (min-width: 1240px) {
+    .duelstage { grid-template-columns: minmax(0,1fr) minmax(300px,400px) minmax(0,1fr);
+                 grid-template-areas: 'a mid b'; gap: 34px; }
+    .dmid { max-width: none; }
+  }
+  .fcol { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; }
+  .fc { position: relative; width: 100%; max-width: 300px; aspect-ratio: 540 / 820;
+        container-type: inline-size; user-select: none; transition: transform .16s ease;
+        filter: drop-shadow(0 16px 24px rgba(0,0,0,.55)) drop-shadow(0 0 9px var(--fcglow)); }
+  .fc.win { filter: drop-shadow(0 16px 26px rgba(0,0,0,.55))
+                    drop-shadow(0 0 22px var(--fcglow)); }
+  .fcsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  /* the portrait, cut to the card: masked to the shield so it can never spill,
+     then feathered three ways — a radial vignette, a diagonal fade into the
+     top-left, and a soft top edge — so the head grows out of the card instead
+     of sitting in a box on top of it. */
+  .fcav { position: absolute; inset: 0; z-index: 2;
+          -webkit-mask-image: var(--fcmask); mask-image: var(--fcmask);
+          -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+          -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+  .fcav1 { position: absolute; left: 11cqw; top: 6cqw; width: 78cqw; height: 78cqw;
+           -webkit-mask-image: radial-gradient(62% 80% at 50% 44%, #000 62%, transparent 88%);
+           mask-image: radial-gradient(62% 80% at 50% 44%, #000 62%, transparent 88%); }
+  .fcav2 { width: 100%; height: 100%;
+           -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 16%, #000 84%, transparent 100%);
+           mask-image: linear-gradient(90deg, transparent 0%, #000 16%, #000 84%, transparent 100%); }
+  .fcav3 { position: relative; width: 100%; height: 100%;
+           -webkit-mask-image: linear-gradient(transparent 1%, #000 20%, #000 76%, transparent 100%);
+           mask-image: linear-gradient(transparent 1%, #000 20%, #000 76%, transparent 100%);
+           filter: drop-shadow(0 3cqw 6cqw rgba(0,0,0,.55))
+                   drop-shadow(0 0 3cqw var(--fcglow)); }
+  .fcav3 img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+  .fcavig { position: absolute; inset: 0;
+            background: radial-gradient(72% 76% at 52% 40%, transparent 46%,
+                        var(--fcvig1) 78%, var(--fcvig2)); }
   .fcglare { position: absolute; inset: 0; pointer-events: none; z-index: 7;
-             background: radial-gradient(circle at var(--mx,72%) var(--my,14%),
-                         rgba(255,255,255,.10), transparent 44%); }
-  .fchead { position: absolute; top: 62px; left: 44px; display: flex; flex-direction: column;
-            align-items: center; gap: 4px; z-index: 3; }
-  .fcovr { font-size: 52px; font-weight: 800; line-height: .9; color: #F0CE84;
-           text-shadow: 0 2px 14px rgba(0,0,0,.6); }
-  .fcrole { font-size: 12px; letter-spacing: .1em; color: #E6B655; font-weight: 800; }
-  .fcrule { width: 28px; height: 1px;
-            background: linear-gradient(90deg,transparent,rgba(230,182,85,.7),transparent); }
-  .fcmark { width: 19px; height: 19px; opacity: .95; }
-  .fcrk { font-size: 10px; font-weight: 800; color: #171208; letter-spacing: .04em;
-          background: linear-gradient(160deg,#F4DCA0,#E6B655); border-radius: 4px; padding: 3px 6px; }
-  .fclower { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 62px 108px;
-             display: flex; flex-direction: column; z-index: 3; }
-  .fcnamewrap { text-align: center; padding: 8px 0 9px; position: relative; }
-  .fcnamewrap::before, .fcnamewrap::after { content: ''; position: absolute; left: 50%;
-    transform: translateX(-50%); height: 1px;
-    background: linear-gradient(90deg,transparent,rgba(230,182,85,.8),transparent); }
-  .fcnamewrap::before { top: 0; width: 200px; }
-  .fcnamewrap::after { bottom: 0; width: 156px; }
-  .fcname { font-size: 24px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-            color: #F0CE84; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
-  .fcstats { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 3px 0; margin-top: 10px;
-             align-items: center; position: relative; padding-bottom: 10px; }
-  .fcstats::after { content: ''; position: absolute; left: 50%; bottom: 0;
-    transform: translateX(-50%); width: 40px; height: 1px;
-    background: linear-gradient(90deg,transparent,rgba(230,182,85,.6),transparent); }
-  .fcsrule { width: 1px; height: 100%; grid-row: 1 / span 3; grid-column: 2;
-             background: linear-gradient(180deg,transparent,rgba(230,182,85,.5),transparent); }
-  .fst { display: flex; align-items: baseline; gap: 7px; justify-content: center; }
-  .fst b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: #F0CE84; }
-  .fst i { font-style: normal; font-size: 11px; letter-spacing: .1em; color: #b89a55; font-weight: 800; }
-  .fccrest { position: absolute; left: 0; right: 0; bottom: 74px; text-align: center;
-             font-size: 8px; letter-spacing: .3em; color: rgba(230,182,85,.6);
-             font-weight: 800; z-index: 3; }
-  .fcsub { width: 340px; margin-top: 10px; display: flex; flex-direction: column;
-           align-items: center; gap: 8px; }
-  .fcsub .handle { font-size: 12px; color: var(--muted); }
+             opacity: 0; transition: opacity .25s ease; mix-blend-mode: screen;
+             -webkit-mask-image: var(--fcmask); mask-image: var(--fcmask);
+             -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+             background: linear-gradient(112deg,
+               transparent calc(var(--mx,50%) - 21%),
+               rgba(255,255,255,.05) calc(var(--mx,50%) - 9%),
+               rgba(255,255,255,.22) var(--mx,50%),
+               rgba(255,255,255,.06) calc(var(--mx,50%) + 9%),
+               transparent calc(var(--mx,50%) + 19%)); }
+  .fc:hover .fcglare { opacity: 1; }
+  /* The face. FUT hangs the rating over a right-shifted portrait and stacks the
+     stats two-across under a centre spine; ours centres the portrait, drops the
+     rating onto the name line like a shirt number, and runs the six ratings
+     three-across. Same cut, different card. */
+  .fcink { position: absolute; z-index: 3; color: var(--fcink); line-height: 1;
+           font-family: var(--cond); white-space: nowrap; }
+  .fcovr { left: 12.5%; top: 49.6%; font-size: 19cqw; font-weight: 700;
+           font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .fcovrl { left: 13.4%; top: 63.6%; font-size: 4.4cqw; font-weight: 800;
+            letter-spacing: .16em; opacity: .62; }
+  .fcname { left: 38.5%; top: 50.4%; font-weight: 800; letter-spacing: .01em;
+            text-transform: uppercase; }
+  .fcrole { left: 39%; top: 59.6%; font-size: 5.6cqw; font-weight: 600;
+            letter-spacing: .1em; opacity: .74; }
+  .fcst { transform: translateX(-50%); display: flex; align-items: baseline; gap: 1.6cqw; }
+  .fcst b { font-size: 8.6cqw; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .fcst i { font-style: normal; font-size: 6.2cqw; font-weight: 600; letter-spacing: .05em;
+            opacity: .76; }
+  .fcrule { position: absolute; z-index: 3; background: var(--fcrule); }
+  .fcmark { position: absolute; z-index: 3; left: 46%; top: 89.4%; width: 8%; height: 5.4%;
+            opacity: .8; }
+  .fcmark svg { width: 100%; height: 100%; display: block; }
+  .fcsub { display: flex; flex-direction: column; align-items: center; gap: 8px;
+           text-align: center; min-width: 0; }
+  .fcsub .handle { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
   .fcsub .handle b { color: var(--ink); }
   .fcpills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
   /* center column */
-  .dmid { text-align: center; }
-  .dft { font-size: 11px; letter-spacing: .3em; color: var(--muted); font-weight: 800; }
-  .dscore { font-size: clamp(56px,8vw,96px); font-weight: 800; line-height: 1; margin: 6px 0 2px;
+  .dft { font: 800 11px/1 var(--mono); letter-spacing: .28em; color: var(--muted);
+         text-transform: uppercase; }
+  .dscore { font: 800 clamp(48px,9vw,86px)/1 var(--cond); margin: 10px 0 2px;
+            font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  /* one pip per round, so the scoreline shows HOW it was won, not just the total */
+  .dpips { display: flex; gap: 6px; justify-content: center; margin-top: 12px; }
+  .dpip { width: 26px; height: 4px; border-radius: 3px; background: var(--track);
+          transition: background .3s ease; }
+  .dpip.on[data-win="a"] { background: var(--gold); }
+  .dpip.on[data-win="b"] { background: var(--accent); }
+  .dpip.on[data-win="t"] { background: var(--line2); }
+  .dscore #dscA { color: var(--gold); }
+  .dscore #dscB { color: var(--accent); }
+  .dscore em { font-style: normal; color: var(--faint); font-size: .5em;
+               vertical-align: .22em; padding: 0 .22em; }
+  .ddomhd { display: flex; align-items: center; gap: 10px; margin: 20px 2px 7px;
+            font: 800 10px/1 var(--mono); letter-spacing: .16em;
             font-variant-numeric: tabular-nums; }
-  .dscore em { font-style: normal; color: var(--muted); font-size: .6em; vertical-align: .12em;
-               padding: 0 6px; }
-  .ddom { display: flex; align-items: center; gap: 12px; margin: 14px 4px 6px; font-size: 12px;
-          font-weight: 800; font-variant-numeric: tabular-nums; }
-  .ddom .bar { flex: 1; height: 9px; border-radius: 6px; background: var(--track); overflow: hidden; }
-  .ddom .bar i { display: block; height: 100%; background: linear-gradient(90deg,var(--gold),var(--accent));
-                 transition: width .9s cubic-bezier(.22,1,.36,1); }
-  .ddomlab { font-size: 10px; letter-spacing: .22em; color: var(--muted); font-weight: 800; }
-  .dsrow { display: grid; grid-template-columns: 3ch 1fr 4.2em 1fr 3ch; gap: 9px; align-items: center;
-           margin: 8px 0; font-variant-numeric: tabular-nums; }
-  .dsv { font-size: 14px; font-weight: 800; color: var(--muted); }
-  .dsv.w { color: var(--gold); }
-  .dslab { font-size: 10px; letter-spacing: .18em; color: var(--muted); font-weight: 800; text-align: center; }
-  .dsbar { height: 7px; border-radius: 4px; background: var(--track); overflow: hidden; display: flex; }
+  .ddomhd .a { color: var(--gold); } .ddomhd .b { color: var(--accent); }
+  .ddomhd .lab { flex: 1; color: var(--muted); letter-spacing: .26em; }
+  /* tug of war, not a progress bar: the seam between the two colours is the
+     reading, and the centre tick tells you which way it moved off even */
+  .ddom { position: relative; height: 10px; border-radius: 6px; margin: 0 2px;
+          background: var(--accent); }
+  .ddom::after { content: ''; position: absolute; left: 50%; top: -6px; bottom: -6px;
+    width: 1px; background: var(--faint); opacity: .55; }
+  .ddom i { display: block; position: relative; height: 100%; width: 50%;
+            background: var(--gold); border-radius: 6px 0 0 6px;
+            transition: width .9s cubic-bezier(.22,1,.36,1); }
+  .ddom i::after { content: ''; position: absolute; right: -3px; top: -5px; width: 6px;
+    height: 20px; border-radius: 3px; background: var(--ink);
+    box-shadow: 0 0 0 3px var(--bg); }
+  /* both shapes in one hexagon — the overlap IS the story */
+  .dradarwrap { display: flex; justify-content: center; margin: 16px 0 2px; }
+  .dradar { width: 100%; max-width: 250px; display: block; }
+  .dsrows { margin-top: 10px; }
+  .dsrow { display: grid; grid-template-columns: 2.6em 1fr 3.6em 1fr 2.6em; gap: 8px;
+           align-items: center; margin: 9px 0; font-variant-numeric: tabular-nums; }
+  .dsv { font: 800 14px/1 var(--cond); color: var(--muted); display: flex;
+         align-items: center; gap: 5px; }
+  .dsv.a { justify-content: flex-end; } .dsv.b { justify-content: flex-start; }
+  .dsv.w.a { color: var(--gold); } .dsv.w.b { color: var(--accent); }
+  .dsv .pip { width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+              opacity: 0; flex: none; }
+  .dsv.w .pip { opacity: 1; }
+  .dslab { font: 800 10px/1 var(--mono); letter-spacing: .16em; color: var(--muted);
+           text-align: center; }
+  .dsbar { height: 6px; border-radius: 4px; background: var(--track); overflow: hidden;
+           display: flex; }
   .dsbar.l { justify-content: flex-end; }
-  .dsbar i { display: block; height: 100%; width: 0; transition: width .8s cubic-bezier(.22,1,.36,1); }
-  .dsbar.l i { background: var(--gold); border-radius: 4px 0 0 4px; }
-  .dsbar.r i { background: var(--accent); border-radius: 0 4px 4px 0; }
-  .dwin { margin: 26px 0 4px; }
-  .dwin .dft { color: var(--accent); }
-  .dwinname { font-size: clamp(22px,3vw,30px); font-weight: 800; text-transform: uppercase;
-              letter-spacing: .03em; margin-top: 6px; }
-  .dwinsub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .dsbar i { display: block; height: 100%; width: 0;
+             transition: width .8s cubic-bezier(.22,1,.36,1); }
+  .dsbar.l i { background: linear-gradient(90deg,var(--gold-soft),var(--gold));
+               border-radius: 4px 0 0 4px; }
+  .dsbar.r i { background: linear-gradient(90deg,var(--accent),var(--accent-soft));
+               border-radius: 0 4px 4px 0; }
+  .dwin { margin: 30px 0 4px; }
+  .dwin .dft { color: var(--accent); display: flex; align-items: center; gap: 10px;
+               justify-content: center; }
+  .dwin .dft::before, .dwin .dft::after { content: ''; width: 22px; height: 1px;
+    background: currentColor; opacity: .5; }
+  .dwinname { font: 800 clamp(22px,3.4vw,32px)/1.05 var(--cond); text-transform: uppercase;
+              overflow-wrap: anywhere;
+              letter-spacing: .02em; margin-top: 10px; color: var(--gold);
+              text-shadow: 0 0 26px var(--gold-glow); }
+  .dwinname.b { color: var(--accent); text-shadow: 0 0 26px rgba(217,119,87,.34); }
+  .dwinsub { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
   .drec { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-          margin-top: 22px; padding: 4px 18px 10px; text-align: left; }
-  .dreccap { text-align: center; font-size: 10px; letter-spacing: .24em; color: var(--muted);
-             font-weight: 800; padding: 12px 0 4px; }
-  .drecrow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; padding: 8px 2px;
+          margin-top: 24px; padding: 4px 18px 10px; text-align: left; }
+  .dreccap { text-align: center; font: 800 10px/1 var(--mono); letter-spacing: .24em;
+             color: var(--muted); text-transform: uppercase; padding: 14px 0 6px; }
+  .drecrow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; padding: 9px 2px;
              font-size: 13px; border-top: 1px solid var(--line); align-items: baseline;
              font-variant-numeric: tabular-nums; }
   .drecrow b { font-weight: 800; }
   .drecrow .l { text-align: right; }
   .drecrow .c { font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-align: center; }
-  .drecrow .win { color: var(--gold); }
-  .dactions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 22px; }
-  .dbtn { font: 600 13px var(--sans); cursor: pointer; border-radius: 11px; padding: 11px 18px;
-          border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .drecrow .l.win { color: var(--gold); }
+  .drecrow .r.win { color: var(--accent); }
+  .dshare { display: flex; align-items: center; justify-content: center; gap: 9px;
+            width: 100%; margin-top: 24px; padding: 14px 18px; cursor: pointer;
+            border: 0; border-radius: 13px; background: var(--accent); color: #fff;
+            font: 800 13px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase;
+            box-shadow: 0 8px 22px rgba(217,119,87,.28); }
+  .dshare:hover { filter: brightness(1.06); }
+  .dshare svg { width: 16px; height: 16px; }
+  .dactions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px;
+              margin-top: 9px; }
+  .dbtn { font: 600 12.5px var(--sans); cursor: pointer; border-radius: 11px;
+          padding: 11px 10px; border: 1px solid var(--line); background: var(--card);
+          color: var(--ink); display: flex; align-items: center; justify-content: center;
+          gap: 7px; min-width: 0; }
+  .dbtn svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+  .dbtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dbtn:hover { border-color: var(--accent); }
-  .dbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .dbtn.primary:hover { filter: brightness(1.06); }
+  .dbtn:hover svg { color: var(--accent); }
+  /* phones: three buttons across 390px only fit once the icons step aside */
+  @media (max-width: 430px) {
+    .dactions { gap: 7px; }
+    .dbtn { padding: 10px 6px; font-size: 11.5px; }
+    .dbtn svg { display: none; }
+  }
   /* challenge picker */
   .pc-duelhint { font: 10px/1 var(--mono); color: var(--muted); letter-spacing: .04em;
                  align-self: center; }
@@ -1446,7 +1567,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
 <div class="shell">
 
   <aside class="side">
-    <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>ccrank</b>
+    <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>mostcracked</b>
       <span class="livechip"><span class="dot"></span>LIVE</span></div>
     <div class="navsec">Menu</div>
     <a class="nav" id="navHome" href="/">
@@ -1583,7 +1704,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   }
   function usageBit(r){
     if (!r.tok) return '';
-    return ' \\u00B7 <span class="usage" title="estimated tokens burnt \\u00B7 API-equivalent cost (approximate)">'+
+    // separator in its own span: phones hide it and let the flex gap take
+    // over, so the stat line never wraps on a dangling middot
+    return '<span class="msep"> \\u00B7 </span><span class="usage" title="estimated tokens burnt \\u00B7 API-equivalent cost (approximate)">'+
       '~'+fmtTok(r.tok)+' tok \\u00B7 ~'+fmtUsd(r.usd || 0)+'</span>';
   }
   function hue(s){ let h = 0; for (let i = 0; i < s.length; i++) h = (h*31 + s.charCodeAt(i)) % 360; return h; }
@@ -1753,7 +1876,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<div class="cardwrap">'+
         '<div class="pcard'+rkClass+'"><div class="pc-in">'+
           '<div class="pc-top">'+
-            '<span class="pc-brand">'+LOGO+'ccrank</span>'+
+            '<span class="pc-brand">'+LOGO+'mostcracked</span>'+
             '<span class="pc-eyebrow">Global Claude Code Leaderboard</span>'+
           '</div>'+
           '<div class="pc-hero">'+
@@ -2372,8 +2495,11 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     return (r.awards || []).map(function(a){
       const b = BADGES[a.key];
       if (!b) return '';
-      // bubble is spawned by the delegated hover handlers (awShow/awHide)
-      return '<span class="award" tabindex="0" data-bkey="'+esc(a.key)+'">'+b.ico+esc(a.label)+xN(rn[a.key])+'</span>';
+      // bubble is spawned by the delegated hover handlers (awShow/awHide);
+      // the label sits in .awlb so phones can go icon-only (aria-label keeps
+      // the pill named for readers when the text is hidden)
+      return '<span class="award" tabindex="0" data-bkey="'+esc(a.key)+'" aria-label="'+esc(a.label)+'">'+
+        b.ico+'<span class="awlb">'+esc(a.label)+'</span>'+xN(rn[a.key])+'</span>';
     }).join('') + pastBtnHtml(r);
   }
   // The trophy case: EVERY day-end record the player has, held-now or not
@@ -2517,7 +2643,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         '<div class="podnm"><a href="https://github.com/'+encodeURIComponent(login)+
           '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+'</div>'+
         '<div class="podsc">'+fmt(r.score)+'</div>'+
-        '<div class="podmeta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits'+usageBit(r)+'</div>'+
+        '<div class="podmeta"><span class="mseg">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</span>'+usageBit(r)+'</div>'+
         ((r.awards||[]).length ? '<div class="podawards">'+awardsHtml(r)+'</div>' : '')+
         '<div class="ped">'+r.rank+'</div>'+
       '</div>';
@@ -2557,7 +2683,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
         '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
-        '<div class="meta">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits'+usageBit(r)+'</div></div>'+
+        '<div class="meta"><span class="mseg">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</span>'+usageBit(r)+'</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
     }).join('');
@@ -3017,7 +3143,6 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     { k: 'REC', lab: 'receipts',      f: function(r){ return dRecs(r); } }
   ];
   const DWEIGHT = { PMT: .22, EDT: .22, LNS: .18, BRN: .14, STK: .12, REC: .12 };
-  const DROLE3 = { 'ONE-SHOT': '1S', 'CONDUCTOR': 'CND', 'ENGINE': 'ENG', 'HEAVY LIFTER': 'HVY' };
   // Fencing: two crossed foils with bell guards — the white-jacket, masked
   // sword sport. Used for every duel affordance so the action reads instantly.
   function fenceSvg(){
@@ -3059,102 +3184,169 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   const DSTYLE = { 'ONE-SHOT': 'Explosive', 'CONDUCTOR': 'Orchestral',
                    'ENGINE': 'Relentless', 'HEAVY LIFTER': 'Massive' };
 
-  // The card frame: one symmetric path (right half mirrored in code so it can
-  // never go lopsided) + concentric strokes for even gold trim, sunburst rays
-  // and engraved texture inside. Pure SVG, no images, so it stays crisp.
-  const DRHALF = [[200,26],[252,26],[262,40],[306,40],[316,54],[352,54],[362,68],[356,340],
-                  [368,356],[368,378],[352,394],[352,418],[206,552],[200,558]];
-  const DOUT = DRHALF.concat(DRHALF.slice(1, -1).reverse().map(function(pt){ return [400-pt[0], pt[1]]; }));
-  const DSHIELD = 'M ' + DOUT.map(function(pt){ return pt.join(' '); }).join(' L ') + ' Z';
-  const DWING = [[310,16],[396,50],[386,112],[336,58]];
-  const DGEM = [[200,2],[215,15],[200,28],[185,15]];
-  function dPolyStr(pts){ return pts.map(function(pt){ return pt.join(','); }).join(' '); }
-  // Same outline as the SVG, in percentages, so CSS can clip overlays to it.
-  const DCLIP = 'polygon(' + DOUT.map(function(pt){
-    return (pt[0] / 400 * 100).toFixed(2) + '% ' + (pt[1] / 560 * 100).toFixed(2) + '%'; }).join(',') + ')';
-  function dRays(id){
-    let out = '';
-    for (let i = 0; i < 11; i++){
-      const ang = (-172 + i * 16.5) * Math.PI / 180;
-      const tx = 200 + 250 * Math.cos(ang), ty = 172 + 250 * Math.sin(ang);
-      const px = -Math.sin(ang) * 10, py = Math.cos(ang) * 10;
-      out += '<polygon points="200,172 ' + (tx+px).toFixed(1) + ',' + (ty+py).toFixed(1) + ' ' +
-        (tx-px).toFixed(1) + ',' + (ty-py).toFixed(1) + '" fill="url(#dg3' + id + ')" opacity="' +
-        (i % 2 ? '.30' : '.13') + '"/>';
-    }
-    return out;
-  }
-  function dFrameSvg(id){
-    const wing = function(pts){
-      return '<polygon points="' + dPolyStr(pts) + '" fill="url(#dg1' + id +
-        ')" stroke="#241a0c" stroke-width="1.5"/>'; };
-    return '<svg class="cardsvg" viewBox="0 0 400 560" aria-hidden="true">' +
-      '<defs>' +
-      '<linearGradient id="dg1' + id + '" x1="0" y1="0" x2="1" y2="1">' +
-        '<stop offset="0" stop-color="#F4DCA0"/><stop offset=".3" stop-color="#E6B655"/>' +
-        '<stop offset=".55" stop-color="#8a6c2e"/><stop offset=".78" stop-color="#E6B655"/>' +
-        '<stop offset="1" stop-color="#a3803a"/></linearGradient>' +
-      '<linearGradient id="dg2' + id + '" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0" stop-color="#2E2517"/><stop offset=".5" stop-color="#201810"/>' +
-        '<stop offset="1" stop-color="#171208"/></linearGradient>' +
-      '<linearGradient id="dg3' + id + '" x1="0" y1="1" x2="1" y2="0">' +
-        '<stop offset="0" stop-color="#E6B655" stop-opacity="0"/>' +
-        '<stop offset="1" stop-color="#F4DCA0" stop-opacity=".9"/></linearGradient>' +
-      '<radialGradient id="dg4' + id + '" cx=".54" cy=".28" r=".55">' +
-        '<stop offset="0" stop-color="#E6B655" stop-opacity=".22"/>' +
-        '<stop offset="1" stop-color="#E6B655" stop-opacity="0"/></radialGradient>' +
-      '<pattern id="dgd' + id + '" width="26" height="26" patternUnits="userSpaceOnUse">' +
-        '<circle cx="13" cy="13" r="1.5" fill="rgba(230,182,85,.06)"/>' +
-        '<circle cx="0" cy="0" r="1.5" fill="rgba(230,182,85,.045)"/></pattern>' +
-      '<pattern id="dgl' + id + '" width="7" height="7" patternUnits="userSpaceOnUse" ' +
-        'patternTransform="rotate(45)"><rect width="7" height="1" fill="rgba(230,182,85,.035)"/></pattern>' +
-      '<clipPath id="dgc' + id + '"><path d="' + DSHIELD + '"/></clipPath>' +
-      '</defs>' +
-      wing(DWING) + wing(DWING.map(function(pt){ return [400-pt[0], pt[1]]; })) +
-      '<path d="' + DSHIELD + '" fill="url(#dg2' + id + ')"/>' +
-      '<g clip-path="url(#dgc' + id + ')">' +
-        '<rect width="400" height="560" fill="url(#dgl' + id + ')"/>' +
-        '<rect width="400" height="560" fill="url(#dgd' + id + ')"/>' +
-        '<rect width="400" height="560" fill="url(#dg4' + id + ')"/>' + dRays(id) +
-      '</g>' +
-      '<path d="' + DSHIELD + '" fill="none" stroke="url(#dg1' + id + ')" stroke-width="10"/>' +
-      '<path d="' + DSHIELD + '" fill="none" stroke="#171208" stroke-width="5"/>' +
-      '<path d="' + DSHIELD + '" fill="none" stroke="url(#dg1' + id + ')" stroke-width="2"/>' +
-      '<polygon points="' + dPolyStr(DGEM) + '" fill="url(#dg1' + id + ')" ' +
-        'stroke="#241a0c" stroke-width="1.5"/>' +
-      '</svg>';
-  }
-  function futCardHtml(r, won){
-    const id = String(r.login).replace(/[^a-zA-Z0-9]/g, '');
-    const st = DSTATS.map(function(s, i){
-      return '<div class="fst" style="grid-column:' + (i % 2 ? 3 : 1) + '"><b>' +
-        dRate(r, s) + '</b><i>' + s.k + '</i></div>'; }).join('');
-    const MARK = '<svg class="fcmark" viewBox="106 106 300 300" aria-hidden="true">' +
-      '<g fill="#8a7a5e"><rect x="118" y="318" width="76" height="76" rx="19"/>' +
+  // The card frame. The silhouette is the real FUT cut, traced off the article
+  // itself: half the outline in points, mirrored in code so it can never go
+  // lopsided. viewBox is 540x820 (the card's own aspect), which is also the
+  // coordinate space every label below is positioned in, so the whole face
+  // scales from one width and nothing needs a second set of numbers.
+  const DHALF = [[226.1,14.8],[207.7,16.5],[184,20],[166.4,23.5],[144.4,28.8],[133,32.3],
+    [112.8,39.3],[95.3,46.4],[83.9,53.4],[82.1,56.9],[82.1,62.2],[80.3,69.2],[76.8,78],
+    [71.6,86.8],[66.3,93.8],[61,99],[53.1,104.3],[47,107.8],[36.4,111.3],[24.1,113.6],
+    [20,118],[20,660],[21.5,682.1],[22.4,689.2],[25.9,696.2],[30.3,703.2],[38.2,710.2],
+    [51.4,717.3],[73.3,724.3],[96.1,731.3],[117.2,738.3],[139.2,745.4],[159.4,752.4],
+    [179.6,759.4],[197.1,766.4],[213.8,773.5],[229.6,780.5],[241.9,787.5],[254.2,794.5],
+    [263,801.6],[269.1,806.8],[270,809]];
+  const DOUT = DHALF.concat(DHALF.slice(0, -1).reverse().map(function(p){ return [540 - p[0], p[1]]; }));
+  const DSHIELD = 'M' + DOUT.map(function(p){ return p[0] + ' ' + p[1]; }).join('L') + 'Z';
+  // The same outline as a CSS mask, so the portrait and the glare sheet get cut
+  // to the card instead of overhanging its notched shoulders.
+  const DMASK = "url('data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 820" preserveAspectRatio="none">' +
+    '<path d="' + DSHIELD + '" fill="#000"/></svg>') + "')";
+  // Where the top (portrait) half hands over to the bottom (name + stats) half.
+  const DSPLIT = 390;
+  // Two finishes, one per corner: the challenger's gold and the champion's dark
+  // — same DNA as the board (gold / coral), so a duel reads at a glance which
+  // numbers on the scoreline belong to which card.
+  const DTONE = {
+    a: { up1:'#EEDF9C', up2:'#B9A250', lo1:'#FCF1A8', lo2:'#DDBE5C',
+         ink:'#3A2F0D', rule:'rgba(58,47,13,.5)', rim:'#8E7126', rim2:'rgba(255,247,205,.7)',
+         seam:'rgba(255,250,214,.85)',
+         glow:'rgba(243,214,121,.34)', vig1:'rgba(243,214,121,.22)', vig2:'rgba(140,104,26,.5)',
+         wm:'rgba(58,47,13,.085)', mk1:'#4A3C0E', mk2:'#7A6414' },
+    b: { up1:'#453626', up2:'#231A11', lo1:'#2B2117', lo2:'#120D07',
+         ink:'#F0CE84', rule:'rgba(235,205,91,.4)', rim:'#E6B655', rim2:'rgba(0,0,0,.55)',
+         seam:'rgba(235,205,91,.55)',
+         glow:'rgba(217,119,87,.4)', vig1:'rgba(217,119,87,.20)', vig2:'rgba(38,17,8,.58)',
+         wm:'rgba(240,206,132,.055)', mk1:'#8A7A5E', mk2:'#D97757' }
+  };
+  // The house mark, drawn once at whatever size the caller wants.
+  function dMarkSvg(c1, c2){
+    return '<svg viewBox="106 106 300 300" aria-hidden="true">' +
+      '<g fill="' + c1 + '"><rect x="118" y="318" width="76" height="76" rx="19"/>' +
       '<rect x="118" y="218" width="76" height="76" rx="19"/>' +
       '<rect x="318" y="318" width="76" height="76" rx="19"/></g>' +
-      '<g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/>' +
+      '<g fill="' + c2 + '"><rect x="218" y="318" width="76" height="76" rx="19"/>' +
       '<rect x="218" y="218" width="76" height="76" rx="19"/>' +
       '<rect x="218" y="118" width="76" height="76" rx="19"/></g></svg>';
-    const src = r.avatar || ('https://github.com/' + encodeURIComponent(r.login) + '.png?size=200');
-    const crown = r.rank === 1
-      ? '<span class="fccrown">' + crownSvg() + '</span>' : '';
-    return '<div class="fc' + (won ? ' win' : '') + '">' + dFrameSvg(id) +
-      '<img class="fcart" src="' + esc(src) + '" alt="" />' + crown +
-      '<div class="fchead"><div class="fcovr">' + dOvr(r) + '</div>' +
-      '<div class="fcrole">' + DROLE3[dRole(r)] + '</div><div class="fcrule"></div>' +
-      MARK + '<div class="fcrk">#' + (r.rank || '-') + '</div></div>' +
-      '<div class="fcglare" style="clip-path:' + DCLIP + '"></div>' +
-      '<div class="fclower"><div class="fcnamewrap"><div class="fcname">' +
-      esc(String(r.login).replace(/[-_].*$/, '').slice(0, 10)) + '</div></div>' +
-      '<div class="fcstats"><div class="fcsrule"></div>' + st + '</div></div>' +
-      '<div class="fccrest">CCRANK · 26</div></div>';
   }
-  function futColHtml(r, won){
-    const pills = (r.awards || []).slice(0, 4).map(function(a){
+  function dFrameSvg(id, t){
+    // the house mark, blown up and knocked back — the watermark the portrait sits on
+    const wm = '<g transform="translate(75,52) scale(1.3)" fill="' + t.wm + '">' +
+      [[12,212],[12,112],[212,212],[112,212],[112,112],[112,12]].map(function(p){
+        return '<rect x="' + p[0] + '" y="' + p[1] + '" width="76" height="76" rx="19"/>'; }).join('') +
+      '</g>';
+    return '<svg class="fcsvg" viewBox="0 0 540 820" aria-hidden="true">' +
+      '<defs>' +
+      '<linearGradient id="fu' + id + '" x1="0" y1="0" x2=".42" y2="1">' +
+        '<stop offset="0" stop-color="' + t.up1 + '"/>' +
+        '<stop offset="1" stop-color="' + t.up2 + '"/></linearGradient>' +
+      '<linearGradient id="fl' + id + '" x1="0" y1="0" x2=".92" y2="1">' +
+        '<stop offset="0" stop-color="' + t.lo1 + '"/>' +
+        '<stop offset="1" stop-color="' + t.lo2 + '"/></linearGradient>' +
+      '<linearGradient id="fh' + id + '" x1="0" y1="1" x2="1" y2="0">' +
+        '<stop offset=".22" stop-color="#fff" stop-opacity="0"/>' +
+        '<stop offset=".5" stop-color="#fff" stop-opacity=".14"/>' +
+        '<stop offset=".78" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<clipPath id="fk' + id + '"><path d="' + DSHIELD + '"/></clipPath>' +
+      '</defs>' +
+      '<g clip-path="url(#fk' + id + ')">' +
+        '<rect width="540" height="' + (DSPLIT + 1) + '" fill="url(#fu' + id + ')"/>' +
+        '<rect y="' + DSPLIT + '" width="540" height="' + (820 - DSPLIT) + '" fill="url(#fl' + id + ')"/>' +
+        '<rect y="' + (DSPLIT - 1.2) + '" width="540" height="2.4" fill="' + t.seam + '" opacity=".55"/>' +
+        wm +
+        '<rect width="540" height="820" fill="url(#fh' + id + ')"/>' +
+      '</g>' +
+      '<path d="' + DSHIELD + '" fill="none" stroke="' + t.rim + '" stroke-width="7" opacity=".7"/>' +
+      '<path d="' + DSHIELD + '" fill="none" stroke="' + t.rim2 + '" stroke-width="1.6"/>' +
+      '</svg>';
+  }
+  // Stat plate: three across, twice down, so the eye reads a row of the card
+  // rather than two stacked columns.
+  const DSTX = [25, 50, 75];
+  const DSTY = [71.4, 80.8];
+  function futCardHtml(r, won, tone){
+    const t = DTONE[tone];
+    const id = tone + String(r.login).replace(/[^a-zA-Z0-9]/g, '');
+    const rule = function(l, top, w){
+      return '<i class="fcrule" style="left:' + l + '%;top:' + top + '%;width:' + w +
+        '%;height:.32cqw"></i>'; };
+    const vrule = function(l, top, h){
+      return '<i class="fcrule" style="left:' + l + '%;top:' + top + '%;width:.32cqw;height:' +
+        h + '%"></i>'; };
+    let st = '';
+    DSTY.forEach(function(top, row){
+      DSTX.forEach(function(left, col){
+        const s = DSTATS[row * 3 + col];
+        st += '<span class="fcink fcst" style="left:' + left + '%;top:' + top + '%"><b>' +
+          dRate(r, s) + '</b><i>' + s.k + '</i></span>';
+      });
+    });
+    // long logins would run off the plate — shrink to fit rather than clip
+    const nm = String(r.login).replace(/[-_].*$/, '').slice(0, 13);
+    const nsz = (nm.length > 7 ? 11 * 7 / nm.length : 11).toFixed(2);
+    const src = r.avatar || ('https://github.com/' + encodeURIComponent(r.login) + '.png?size=200');
+    return '<div class="fc ' + tone + (won ? ' win' : '') + '" style="--fcmask:' + DMASK +
+        ';--fcink:' + t.ink + ';--fcrule:' + t.rule + ';--fcglow:' + t.glow +
+        ';--fcvig1:' + t.vig1 + ';--fcvig2:' + t.vig2 + '">' +
+      dFrameSvg(id, t) +
+      '<div class="fcav"><div class="fcav1"><div class="fcav2"><div class="fcav3">' +
+        '<img src="' + esc(src) + '" alt="" loading="lazy" />' +
+        '<div class="fcavig"></div></div></div></div></div>' +
+      '<span class="fcink fcovr">' + dOvr(r) + '</span>' +
+      '<span class="fcink fcovrl">OVR · #' + (r.rank || '-') + '</span>' +
+      vrule(34.6, 50.6, 15) +
+      '<span class="fcink fcname" style="font-size:' + nsz + 'cqw">' + esc(nm) + '</span>' +
+      '<span class="fcink fcrole">' + dRole(r) + '</span>' +
+      rule(10, 67, 80) + st +
+      vrule(37.5, 69.8, 17.4) + vrule(62.5, 69.8, 17.4) +
+      '<span class="fcmark">' + dMarkSvg(t.mk1, t.mk2) + '</span>' +
+      '<div class="fcglare"></div>' +
+    '</div>';
+  }
+  // Both players' rating shapes in ONE hexagon rather than two side by side —
+  // the whole point of a duel is the overlap, and you can't see overlap when
+  // the shapes live in different boxes.
+  function dRadarSvg(A, B){
+    const C = 110, CY = 104, R = 66;
+    const at = function(i, k){
+      const a = (-90 + i * 60) * Math.PI / 180;
+      return [(C + Math.cos(a) * R * k).toFixed(1), (CY + Math.sin(a) * R * k).toFixed(1)];
+    };
+    const ring = function(k){
+      return [0,1,2,3,4,5].map(function(i){ return at(i, k).join(','); }).join(' '); };
+    const shape = function(r, col, dash){
+      const pts = DSTATS.map(function(s, i){
+        return at(i, Math.max(.14, Math.min(1, (dRate(r, s) - 40) / 59))); });
+      return '<polygon points="' + pts.map(function(p){ return p.join(','); }).join(' ') +
+        '" fill="' + col + '" fill-opacity=".14" stroke="' + col + '" stroke-width="2" ' +
+        'stroke-linejoin="round"' + (dash ? ' stroke-dasharray="5 3.5"' : '') + '/>' +
+        pts.map(function(p){
+          return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="2.7" fill="' + col + '"/>';
+        }).join('');
+    };
+    return '<svg class="dradar" viewBox="0 0 220 208" role="img" ' +
+        'aria-label="rating shapes, both players">' +
+      '<style>.drlab{font:800 8px var(--mono);letter-spacing:.14em;fill:var(--muted)}</style>' +
+      [.34, .67, 1].map(function(k){
+        return '<polygon points="' + ring(k) + '" fill="none" stroke="var(--line2)" ' +
+          'stroke-width="1" opacity="' + (k === 1 ? '.9' : '.5') + '"/>'; }).join('') +
+      [0,1,2].map(function(i){
+        const p = at(i, 1), q = at(i + 3, 1);
+        return '<line x1="' + p[0] + '" y1="' + p[1] + '" x2="' + q[0] + '" y2="' + q[1] +
+          '" stroke="var(--line2)" stroke-width="1" opacity=".4"/>'; }).join('') +
+      shape(B, 'var(--accent)', true) + shape(A, 'var(--gold)', false) +
+      DSTATS.map(function(s, i){
+        const p = at(i, 1.28);
+        const anc = i === 0 || i === 3 ? 'middle' : (i === 1 || i === 2 ? 'start' : 'end');
+        return '<text x="' + p[0] + '" y="' + (+p[1] + 3) + '" text-anchor="' + anc +
+          '" class="drlab">' + s.k + '</text>'; }).join('') + '</svg>';
+  }
+  function futColHtml(r, won, tone){
+    const pills = (r.awards || []).slice(0, 6).map(function(a){
       const bd = BADGES[a.key];
       return bd ? '<span class="award">' + bd.ico + esc(a.label) + '</span>' : ''; }).join('');
-    return '<div class="fcol">' + futCardHtml(r, won) +
+    return '<div class="fcol">' + futCardHtml(r, won, tone) +
       '<div class="fcsub"><span class="handle">@' + esc(r.login) + ' · <b>' + dRole(r) +
       '</b> · ' + DSTYLE[dRole(r)] + '</span>' +
       (pills ? '<div class="fcpills">' + pills + '</div>' : '') + '</div></div>';
@@ -3191,51 +3383,85 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const pa = Math.round(100 * ta / (ta + tb));
     const bars = DSTATS.map(function(s, i){
       const side = ra[i] > rb[i] ? 'a' : ra[i] < rb[i] ? 'b' : 't';
-      return '<div class="dsrow" data-win="' + side + '"><span class="dsv' +
-          (side === 'a' ? ' w' : '') + '">' + ra[i] + '</span>' +
+      return '<div class="dsrow" data-win="' + side + '"><span class="dsv a' +
+          (side === 'a' ? ' w' : '') + '">' + ra[i] + '<i class="pip"></i></span>' +
         '<span class="dsbar l"><i data-w="' + ra[i] + '"></i></span>' +
         '<span class="dslab">' + s.k + '</span>' +
         '<span class="dsbar r"><i data-w="' + rb[i] + '"></i></span>' +
-        '<span class="dsv' + (side === 'b' ? ' w' : '') + '">' + rb[i] + '</span></div>'; }).join('');
+        '<span class="dsv b' + (side === 'b' ? ' w' : '') + '"><i class="pip"></i>' +
+          rb[i] + '</span></div>'; }).join('');
     const recs = DSTATS.map(function(s){
       const va = s.f(A), vb = s.f(B);
       const shown = function(v){ return s.k === 'BRN' ? '~$' + Math.round(v) :
         s.k === 'STK' ? v + 'd' : fmt(v); };
       return '<div class="drecrow"><b class="l' + (va >= vb ? ' win' : '') + '">' + shown(va) + '</b>' +
         '<span class="c">' + s.lab + '</span>' +
-        '<b' + (vb >= va ? ' class="win"' : '') + '>' + shown(vb) + '</b></div>'; }).join('');
+        '<b class="r' + (vb >= va ? ' win' : '') + '">' + shown(vb) + '</b></div>'; }).join('');
     const winner = aWins ? A : B;
+    // each corner of the poster: name, then how they got here
+    const corner = function(side, r){
+      return '<button class="dcorner ' + side + '" data-who="' + esc(r.login) + '">' +
+        '<span class="duelname">' + esc(r.login) + '</span>' +
+        '<span class="seed">Global #' + (r.rank || '-') + ' · ' + dOvr(r) + ' OVR</span>' +
+        '</button>'; };
+    // How it was settled, in the language of the game: a clean stat win, or a
+    // dead-level six that overall rating had to break.
+    const drawn = wa === wb;
     duelScore = { wa: wa, wb: wb, pa: pa };
     return '<section class="duelpg">' +
-      '<div class="duelhd"><div class="eyebrow">The duel</div>' +
-        '<div class="duelvs">' +
-          '<button class="duelname" data-who="' + esc(A.login) + '">' + esc(A.login) + '</button>' +
-          '<span class="vsbolt">VS</span>' +
-          '<button class="duelname" data-who="' + esc(B.login) + '">' + esc(B.login) + '</button>' +
+      '<div class="duelhd"><div class="dband">' +
+          corner('a', A) + '<span class="vsbolt"><b>VS</b></span>' + corner('b', B) +
         '</div></div>' +
       '<div class="duelstage">' +
-        '<div>' + futColHtml(A, aWins) + '</div>' +
+        '<div class="dcol-a">' + futColHtml(A, aWins, 'a') + '</div>' +
         '<div class="dmid">' +
-          '<div class="dft">Full time</div>' +
+          '<div class="dft">Full time · six rounds</div>' +
           '<div class="dscore"><span id="dscA">0</span><em>–</em><span id="dscB">0</span></div>' +
-          '<div class="ddom"><span>' + pa + '%</span><span class="bar"><i id="ddomBar" data-w="' + pa + '%"></i></span>' +
-            '<span>' + (100 - pa) + '%</span></div>' +
-          '<div class="ddomlab">Dominance</div>' +
-          '<div style="margin-top:14px">' + bars + '</div>' +
-          '<div class="dwin dreveal"><div class="dft">Most cracked</div>' +
-            '<div class="dwinname">' + esc(winner.login) + '</div>' +
-            '<div class="dwinsub">' + wa + '–' + wb + ' across the six stats</div></div>' +
+          '<div class="dpips">' + DSTATS.map(function(s, i){
+            return '<i class="dpip" data-win="' + (ra[i] > rb[i] ? 'a' : ra[i] < rb[i] ? 'b' : 't') +
+              '" title="' + s.lab + '"></i>'; }).join('') + '</div>' +
+          '<div class="ddomhd"><span class="a">' + pa + '%</span>' +
+            '<span class="lab">Dominance</span>' +
+            '<span class="b">' + (100 - pa) + '%</span></div>' +
+          '<div class="ddom"><i id="ddomBar" data-w="' + pa + '%"></i></div>' +
+          '<div class="dradarwrap">' + dRadarSvg(A, B) + '</div>' +
+          '<div class="dsrows">' + bars + '</div>' +
+          '<div class="dwin dreveal"><div class="dft">' +
+              (drawn ? 'After penalties' : 'Most cracked') + '</div>' +
+            '<div class="dwinname' + (aWins ? '' : ' b') + '">' + esc(winner.login) + '</div>' +
+            '<div class="dwinsub">' + (drawn
+              ? 'dead level — ' + dOvr(winner) + ' OVR settles it from the spot'
+              : wa + '–' + wb + ' across the six stats') + '</div></div>' +
           '<div class="drec dreveal"><div class="dreccap">— The receipts —</div>' + recs + '</div>' +
-          '<div class="dactions dreveal">' +
-            '<button class="dbtn primary" onclick="dShare(event)">Copy duel link</button>' +
-            '<button class="dbtn" onclick="dPick()">Challenge someone else</button>' +
-            '<button class="dbtn" onclick="dSwap()">Swap corners</button>' +
-            '<button class="dbtn dback">Back to board</button>' +
+          '<div class="dreveal">' +
+            '<button class="dshare" onclick="dShare(event)">' + shareSvg() +
+              '<span>Share the duel</span></button>' +
+            '<div class="dactions">' +
+              '<button class="dbtn" onclick="dPick()">' + fenceSvg() + '<span>New rival</span></button>' +
+              '<button class="dbtn" onclick="dSwap()">' + swapSvg() + '<span>Swap corners</span></button>' +
+              '<button class="dbtn dback">' + backSvg() + '<span>The board</span></button>' +
+            '</div>' +
           '</div>' +
           '<div id="dpick"></div>' +
         '</div>' +
-        '<div>' + futColHtml(B, !aWins) + '</div>' +
+        '<div class="dcol-b">' + futColHtml(B, !aWins, 'b') + '</div>' +
       '</div>' + duelInviteHtml() + '</section>';
+  }
+  function shareSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>' +
+      '<path d="M8.6 13.5 15.4 17.5"/><path d="M15.4 6.5 8.6 10.5"/></svg>';
+  }
+  function swapSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M4 8h13l-3.5-3.5"/><path d="M20 16H7l3.5 3.5"/></svg>';
+  }
+  function backSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg>';
   }
   // The conversion moment: a stranger landed here from a shared link. Getting a
   // card runs entirely through the agent prompt — nobody types a command.
@@ -3265,10 +3491,12 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const rows = [].slice.call(document.querySelectorAll('.dsrow'));
     const scA = document.getElementById('dscA'), scB = document.getElementById('dscB');
     const cards = document.querySelectorAll('.fc');
+    const pips = [].slice.call(document.querySelectorAll('.dpip'));
     const finish = function(){
       if (scA) scA.textContent = wa;
       if (scB) scB.textContent = wb;
       rows.forEach(function(r){ r.classList.add('on'); });
+      pips.forEach(function(p){ p.classList.add('on'); });
       document.querySelectorAll('.dsbar i').forEach(function(el){
         el.style.width = ((+el.getAttribute('data-w') - 40) / 59 * 100) + '%'; });
       const db = document.getElementById('ddomBar');
@@ -3292,6 +3520,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       }
       const row = rows[i], side = row.getAttribute('data-win');
       row.classList.add('on');
+      if (pips[i]) pips[i].classList.add('on');
       row.querySelectorAll('.dsbar i').forEach(function(el){
         el.style.width = ((+el.getAttribute('data-w') - 40) / 59 * 100) + '%'; });
       // the punch lands a beat after the bars start moving
@@ -3323,7 +3552,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   document.addEventListener('click', function(ev){
     if (!ev.target.closest) return;
     if (ev.target.closest('.dback')) return duelNav('/', null);
-    const b = ev.target.closest('.duelname');
+    const b = ev.target.closest('.dcorner');
     if (!b) return;
     const r = rowOf(b.getAttribute('data-who'));
     if (r) openCard(r.login, r.score || 0);
@@ -3333,12 +3562,15 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     return false;
   }
   function dShare(ev){
+    // the label lives in a <span> next to the icon — swap only that, so the
+    // icon survives the "Copied!" flash
     const btn = ev && ev.currentTarget;
+    const lab = btn && (btn.querySelector('span') || btn);
     const url = location.origin + '/duel/' + encodeURIComponent(DUEL.a) + '-vs-' + encodeURIComponent(DUEL.b);
     const flash = function(t){
-      if (!btn) return;
-      const was = btn.textContent; btn.textContent = t;
-      setTimeout(function(){ btn.textContent = was; }, 1600);
+      if (!lab) return;
+      const was = lab.textContent; lab.textContent = t;
+      setTimeout(function(){ lab.textContent = was; }, 1600);
     };
     navigator.clipboard.writeText(url).then(function(){ flash('Copied!'); },
       function(){ flash('Couldn\u2019t copy'); });
@@ -3455,8 +3687,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
             '<ellipse class="lq6" cx="330" cy="430" rx="240" ry="80" fill="#EFB08C" opacity=".8"/>'+
           '</g></svg>'+
         '<div class="hero-head"><h1>Every prompt counts.</h1>'+
-          '<p><span>Every Claude Code user on one board. Every prompt you send and file Claude edits scores you a point, live.</span><br>'+
-            '<span>Every player gets a card. Duel anyone on the board.</span></p></div>'+
+          '<p><span>One global board, ranked live \\u2014 duel anyone on it.</span></p></div>'+
         '<div class="heroterm'+(heroPlayed ? ' noanim' : '')+'" role="img" '+
           'aria-label="Claude Code session with the ccrank statusline showing your live rank">'+
           '<div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i>'+
@@ -3626,7 +3857,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const chartBlock = chartHtml(data.series); // sets DIMS.weeks for the header
     content.innerHTML =
       (CODE || CHARTPG || DUEL ? '' : heroHtml())+
-      (CODE ? '' : w25Html(GLOBAL && GLOBAL.chart, CHARTPG))+
+      // On the /chart page the weekly 25 IS the content, so it leads. On the
+      // homepage it sits under the leaderboard grid — the board is the point.
+      (CODE || !CHARTPG ? '' : w25Html(GLOBAL && GLOBAL.chart, CHARTPG))+
       '<div class="grid">'+
       // Entrance animations play once; poll repaints swap in place ("quiet")
       // so live score updates don't re-run the whole rise choreography.
@@ -3642,7 +3875,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         stripHtml(data.series, totals)+
       '</section>'+
       '<div class="rail">'+(CODE ? inviteCard()+raceCard(data.today||[]) : onboardCard()+howCard())+'</div>'+
-      '</div>';
+      '</div>'+
+      (CODE || CHARTPG ? '' : w25Html(GLOBAL && GLOBAL.chart, false));
     bindChart();
     if (!CODE) w25AfterPaint();
     boardAnimated = true;

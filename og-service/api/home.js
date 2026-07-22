@@ -124,7 +124,7 @@ function poster(d, avatars) {
       // header
       div({ alignItems: "center", width: "100%" }, [
         el("img", {}, undefined, { src: LOGO, width: 34, height: 34 }),
-        txt({ fontWeight: 800, fontSize: 26, color: INK, marginLeft: 12 }, "ccrank"),
+        txt({ fontWeight: 800, fontSize: 23, color: INK, marginLeft: 12 }, "mostcracked"),
         div({ marginLeft: "auto", alignItems: "center",
               border: "1px solid #332F26", borderRadius: 999, padding: "8px 16px" }, [
           div({ width: 9, height: 9, borderRadius: 5, background: CORAL, marginRight: 9 }),
