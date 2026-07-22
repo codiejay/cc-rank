@@ -77,8 +77,8 @@ function poster(d, avatars) {
     txt({ fontWeight: 800, fontSize: 20, color: MEDAL[r.rank] || CORAL, width: 34 }, "0" + r.rank),
     el("img", { borderRadius: 26, boxShadow: `0 0 0 3px ${MEDAL[r.rank] || CORAL}` },
        undefined, { src: avatars[i + 1], width: 52, height: 52 }),
-    txt({ fontWeight: 700, fontSize: r.login.length > 10 ? 16 : 19, color: INK, marginLeft: 14, marginRight: 12, whiteSpace: "nowrap" },
-        r.login.length > 16 ? r.login.slice(0, 15) + "…" : r.login),
+    txt({ fontWeight: 700, fontSize: r.login.length > 10 ? 15 : 19, color: INK, marginLeft: 14, marginRight: 12, whiteSpace: "nowrap" },
+        r.login.length > 12 ? r.login.slice(0, 11) + "…" : r.login),
     div({ marginLeft: "auto", alignItems: "baseline", paddingLeft: 10 }, [
       txt({ fontWeight: 800, fontSize: 24, color: INK }, fmt(r.score)),
       txt({ fontWeight: 600, fontSize: 11, color: MUTED, marginLeft: 6 }, "PTS"),

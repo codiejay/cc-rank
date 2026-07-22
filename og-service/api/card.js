@@ -182,7 +182,7 @@ function card(d, avatar) {
 
         div({ alignItems: "center", background: "#14110C", borderRadius: 13,
               padding: "14px 22px", marginTop: 22 }, [
-          txt({ fontWeight: 700, fontSize: 18, color: "#D97757" }, `CC-Rank #${row.rank}/${total}`),
+          txt({ fontWeight: 700, fontSize: 18, color: "#D97757" }, `rank #${row.rank}/${total}`),
           txt({ fontSize: 18, color: "#57524A", marginLeft: 10, marginRight: 10 }, "·"),
           txt({ fontWeight: 600, fontSize: 18, color: "#A99F8F" },
               `${fmt(row.prompts)} prompts · ${fmt(row.edits)} edits`),
