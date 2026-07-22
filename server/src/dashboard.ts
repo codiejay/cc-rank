@@ -1184,6 +1184,19 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
             gap: 11px; padding: 12px 16px; }
     .meter { display: none; }
     .sc { font-size: 14px; }
+    /* tok/$ made the stat line long — wrap it instead of clipping offscreen
+       (width:max-content + the overflow-x clip above = chopped "~$4…") */
+    .meta { width: auto; white-space: normal; line-height: 1.6; }
+    .podmeta { line-height: 1.6; }
+    /* the name cluster: smaller pills + tighter gaps so a decorated row
+       stacks neatly (name line, pill line, stat line) instead of sprawling */
+    .nm { gap: 4px 6px; }
+    .award { font-size: 8.5px; padding: 2.5px 6px 2.5px 5px; letter-spacing: .05em; }
+    .awx { font-size: 7.5px; }
+    .chip { font-size: 9px; padding: 2.5px 6px; }
+    .streak { font-size: 9.5px; padding: 2.5px 6px; }
+    .pastbtn { padding: 1px 3px; }
+    .pastbtn svg { width: 14px; height: 14px; }
     .lempty { padding: 28px 16px 32px; }
     .mcell { padding: 12px 14px 14px; }
     .mlab { font-size: 11.5px; gap: 6px; }
