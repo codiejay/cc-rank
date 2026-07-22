@@ -10,7 +10,7 @@
 // with api.github.com before minting a session. No username squatting possible.
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
-import { scanClaudeHistory } from "../lib/backfill.mjs";
+import { scanHistory } from "../lib/backfill.mjs";
 import { execSync, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -321,13 +321,13 @@ function finishInstall(cfg) {
 // never double-count), and the normal daily caps still apply.
 async function offerBackfill(cfg, { explicit = false } = {}) {
   let scan;
-  try { scan = await scanClaudeHistory(7); } catch { return; }
+  try { scan = await scanHistory(7); } catch { return; }
   if (!scan.days.length) {
     if (explicit) console.log(`  No Claude Code history found for the last 7 days — nothing to backfill.`);
     return;
   }
   console.log(`\n  Found ${c.b(scan.prompts)} prompts and ${c.b(scan.edits)} file edits in your local`);
-  console.log(`  Claude Code history from the last 7 days (before today). Backfilling`);
+  console.log(`  coding-agent history from the last 7 days (before today). Backfilling`);
   console.log(`  sends those per-day counts only — ${c.b("never your code")}.`);
   if (!(await askYesNo("Backfill them onto the board? (one shot per account)"))) {
     console.log(c.dim(`  Skipped. Changed your mind? "ccrank backfill" — still one shot.`));
@@ -460,6 +460,10 @@ async function update() {
   if (!cfg?.token) return fail("Not signed in yet. Run: ccrank join <CODE>");
   finishInstall(cfg);
   console.log(`\n  ${c.g("✓")} Updated to the latest ccrank scripts.`);
+  // Existing users get their shot at the one-time backfill here — update is
+  // the path they already run, and the server rules make it safe (only days
+  // with zero tracked events can credit, so it can never double-count).
+  await offerBackfill(cfg);
   console.log(restartMsg());
 }
 
