@@ -1106,13 +1106,23 @@ app.get("/duel/:pair", async (c) => {
   const found = (rows.results as { login: string }[]).map((r) => r.login);
   const a = found.find((l) => l.toLowerCase() === m[1].toLowerCase()) || m[1];
   const b = found.find((l) => l.toLowerCase() === m[2].toLowerCase()) || m[2];
-  const origin = new URL(c.req.url).origin;
+  const url = new URL(c.req.url);
+  const origin = url.origin;
   track(c, "page_view", { props: { page: "duel", a, b } });
+  // Live ratings for the unfurl: the description talks numbers, and ?v= busts
+  // crawler image caches whenever either player's card changes.
+  const d = await duelData(c.env.DB, a, b);
+  // Pre-warm the duel card into KV — crawlers fetch og:image within seconds
+  // of reading this page's meta, and they won't wait out a cold render.
+  c.executionCtx.waitUntil(duelPngCached(c.env, d, c.executionCtx).then(() => {}));
+  const ranked = d.a.score > 0 || d.b.score > 0;
   return c.html(dashboardHtml(null, {
     login: a,
     title: `${a} vs ${b} · mostcracked duel`,
-    desc: `Head to head on the global leaderboard: prompts, edits, lines shipped, dollars burned. Who's more cracked?`,
-    image: origin + "/og/home.png",
+    desc: ranked
+      ? `${d.a.ovr} OVR vs ${d.b.ovr} OVR, ${d.wa}–${d.wb} across six rounds. Who's more cracked?`
+      : `Head to head on the global leaderboard: prompts, edits, lines shipped. Who's more cracked?`,
+    image: `${origin}/og/duel/${a}-vs-${b}.png?v=${d.a.ovr}${d.a.score}-${d.b.ovr}${d.b.score}`,
     url: origin + "/duel/" + a + "-vs-" + b,
   }, "duel", { a, b }));
 });
@@ -1316,6 +1326,101 @@ app.get("/u/:login", async (c) => {
     image: `${origin}/og/${encodeURIComponent(data.row.login)}.png?v=${data.row.score}`,
     url: `${origin}/u/${encodeURIComponent(data.row.login)}`,
   }));
+});
+
+// ---- duel share card -------------------------------------------------------
+// The head-to-head card behind /duel/<a>-vs-<b> unfurls. Same architecture as
+// the personal card: board data from D1 on the Worker, pixels on Vercel, KV
+// keyed on both scores so the card refreshes whenever either player moves.
+const OG_DUEL_RENDERER = "https://og-service-nu.vercel.app/api/duel";
+
+// FUT-style ratings, the same math the dashboard's duel page runs client-side
+// (dRate/dOvr/dRole in dashboard.ts): six stats rated 45-99 against the
+// current board maximum, weighted into an overall, plus the playstyle role.
+const DUEL_STATS = ["PMT", "EDT", "LNS", "BRN", "STK", "REC"] as const;
+const DUEL_WEIGHT: Record<string, number> =
+  { PMT: .22, EDT: .22, LNS: .18, BRN: .14, STK: .12, REC: .12 };
+const duelStatVal = (r: any, k: string): number =>
+  k === "PMT" ? r.prompts || 0 :
+  k === "EDT" ? r.edits || 0 :
+  k === "LNS" ? r.lines || 0 :
+  k === "BRN" ? r.usd || 0 :
+  k === "STK" ? r.streak || 0 :
+  ((r.records || []) as { n?: number }[]).reduce((t, x) => t + (x.n || 0), 0);
+
+interface DuelSide {
+  login: string; avatar: string | null; rank: number; score: number;
+  ovr: number; role: string; rates: Record<string, number>;
+}
+interface DuelData { a: DuelSide; b: DuelSide; wa: number; wb: number }
+
+// Both players' rated board rows plus the six-round score. An off-board login
+// renders as a 45-everything ROOKIE rather than 404ing — a duel link must
+// always unfurl.
+async function duelData(db: D1Database, a: string, b: string): Promise<DuelData> {
+  const board = await boardPayload(db, null);
+  const rows = (board.allTime || []) as any[];
+  const max: Record<string, number> = {};
+  for (const k of DUEL_STATS)
+    max[k] = Math.max(1, ...rows.map((r) => duelStatVal(r, k)));
+  const rate = (r: any, k: string) =>
+    Math.round(45 + 54 * Math.sqrt(Math.min(1, duelStatVal(r, k) / max[k])));
+  const role = (r: any) => {
+    const p = r.prompts || 0, e = r.edits || 0, l = r.lines || 0;
+    if (!p && !e) return "ROOKIE";
+    if (l / Math.max(1, e) >= 60) return "HEAVY LIFTER";
+    const ratio = e / Math.max(1, p);
+    return ratio >= 2.4 ? "ONE-SHOT" : ratio <= 1.4 ? "CONDUCTOR" : "ENGINE";
+  };
+  const pick = (login: string): DuelSide => {
+    const r = rows.find((x) => x.login.toLowerCase() === login.toLowerCase()) ||
+      { login, avatar: null, rank: 0, score: 0 };
+    const rates: Record<string, number> = {};
+    for (const k of DUEL_STATS) rates[k] = rate(r, k);
+    const ovr = Math.round(DUEL_STATS.reduce((t, k) => t + rates[k] * DUEL_WEIGHT[k], 0));
+    return { login: r.login, avatar: r.avatar, rank: r.rank || 0,
+             score: r.score || 0, ovr, role: role(r), rates };
+  };
+  const A = pick(a), B = pick(b);
+  let wa = 0, wb = 0;
+  for (const k of DUEL_STATS) {
+    if (A.rates[k] > B.rates[k]) wa++;
+    else if (A.rates[k] < B.rates[k]) wb++;
+  }
+  return { a: A, b: B, wa, wb };
+}
+
+async function duelOgRender(payload: unknown): Promise<ArrayBuffer | null> {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const d64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const res = await fetch(OG_DUEL_RENDERER + "?d=" + d64);
+  return res.ok ? await res.arrayBuffer() : null;
+}
+// Keyed on ratings, not just scores: a rival's board-max shift can move your
+// stat bars without your score changing, and the card must follow.
+const duelKey = (d: DuelData) =>
+  "og4:duel:" + d.a.login.toLowerCase() + ":" + d.a.ovr + ":" + d.a.score +
+  ":" + d.b.login.toLowerCase() + ":" + d.b.ovr + ":" + d.b.score;
+async function duelPngCached(env: Bindings, d: DuelData,
+  ctx: { waitUntil(p: Promise<unknown>): void }): Promise<ArrayBuffer | null> {
+  const key = duelKey(d);
+  const hit = await env.OG_KV.get(key, "arrayBuffer");
+  if (hit) return hit;
+  const png = await duelOgRender(d);
+  if (png) ctx.waitUntil(env.OG_KV.put(key, png, { expirationTtl: 86400 }));
+  return png;
+}
+
+app.get("/og/duel/:pair", async (c) => {
+  const raw = (c.req.param("pair") || "").replace(/\.png$/i, "");
+  const m = /^([A-Za-z0-9-]{1,39})-vs-([A-Za-z0-9-]{1,39})$/.exec(raw);
+  if (!m || !LOGIN_RE.test(m[1]) || !LOGIN_RE.test(m[2])) return c.notFound();
+  const d = await duelData(c.env.DB, m[1], m[2]);
+  track(c, "og_card", { props: { login: d.a.login + "-vs-" + d.b.login } });
+  return chartPng(c, await duelPngCached(c.env, d, c.executionCtx));
 });
 
 // ---- chart share cards -----------------------------------------------------
