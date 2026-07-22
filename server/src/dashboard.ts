@@ -1209,13 +1209,16 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   /* COMPACT HERO: on desktop the hero is a two-column band — pitch + CTAs on
      the left, the terminal on the right — instead of a tall stack. Cuts the
      landing fold roughly in half so the board is visible without scrolling. */
-  @media (min-width: 900px) {
+  @media (min-width: 1080px) {
     .hero { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
             column-gap: 30px; row-gap: 12px; align-items: center;
             padding: 22px 28px; }
     .hero-head { grid-column: 1; grid-row: 1; text-align: left; margin: 0;
                  max-width: none; }
-    .hero-copyrow { grid-column: 1; grid-row: 2; }
+    /* the copy row is a centering column by default (stacked hero); in the
+       two-column band its pills must hang off the same left edge as the
+       heading and the duel button below it */
+    .hero-copyrow { grid-column: 1; grid-row: 2; align-items: flex-start; }
     .hero > .hero-pills:not(.hero-agents) { grid-column: 1; grid-row: 3; }
     .heroterm { grid-column: 2; grid-row: 1 / span 3; margin: 0; width: 100%; }
     .hero-head h1 { font-size: clamp(24px, 2.7vw, 30px); }
@@ -1224,6 +1227,24 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     .hero-agents .hpill { padding: 8px 12px; font-size: 12.5px; }
     .hero-agents .hlbl { font-size: 12.5px; }
   }
+  /* ---- hero on phones: the stacked layout, tightened. Pills shrink so each
+     "Copy <agent> prompt" still sits on one line as they wrap, and the hero
+     loses the horizontal padding it can't afford. */
+  @media (max-width: 700px) {
+    .hero { padding: 20px 14px 18px; border-radius: 16px; }
+    .hero-copyrow { margin-top: 14px; }
+    .hero-pills { gap: 8px; margin-top: 12px; }
+    .hpill { padding: 9px 12px; font-size: 12px; gap: 6px; }
+    .hpill.hagent { padding: 9px 11px; }
+  }
+  /* The terminal's lines are nowrap + overflow:hidden, so on the narrowest
+     phones the 33ch prompt gets chopped mid-word rather than wrapping. Scale
+     the mono type with the viewport (ch units follow it, so the typing
+     animation still lands exactly on the last character). */
+  @media (max-width: 430px) {
+    .ht-body { font: min(12.5px, 3.2vw)/1.85 var(--mono); padding: 10px 12px 11px; }
+    .slwrap { font-size: min(12px, 3.05vw); }
+  }
   /* ---- duel: TOTY-cut cards + head-to-head ------------------------------- */
   .duelpg { padding-bottom: 40px; }
   .duelhd { text-align: center; margin: 4px 0 22px; }
@@ -1231,9 +1252,10 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
                      font-weight: 800; text-transform: uppercase; }
   .duelvs { display: flex; align-items: center; justify-content: center; gap: 16px;
             margin-top: 12px; flex-wrap: wrap; }
-  .duelvs a { font-size: clamp(20px,3.4vw,34px); font-weight: 800; letter-spacing: .02em;
-              text-transform: uppercase; color: var(--ink); text-decoration: none; }
-  .duelvs a:hover { color: var(--accent); }
+  .duelvs .duelname { font: 800 clamp(20px,3.4vw,34px)/1.1 var(--sans); letter-spacing: .02em;
+                      text-transform: uppercase; color: var(--ink); background: none;
+                      border: 0; padding: 0; cursor: pointer; }
+  .duelvs .duelname:hover { color: var(--accent); }
   .vsbolt { font-size: clamp(15px,2.2vw,22px); font-weight: 800; color: #fff;
             background: var(--accent); padding: 4px 12px; border-radius: 6px;
             transform: skewX(-12deg); }
@@ -1462,7 +1484,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   // /chart: the weekly 25's permanent home — always shows the latest chart.
   const CHARTPG = ${page === "chart" ? "true" : "false"};
   // Duel pair. Logins are LOGIN_RE-validated server-side before they get here.
-  const DUEL = ${duel ? JSON.stringify(duel) : "null"};
+  let DUEL = ${duel ? JSON.stringify(duel) : "null"};
   let mode = "allTime";      // leaderboard range (segmented control)
   let metric = "score";      // chart metric (metric strip tabs)
   let GLOBAL = null, ROOM = null, NOTFOUND = false;
@@ -3187,9 +3209,10 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     return '<section class="duelpg">' +
       '<div class="duelhd"><div class="eyebrow">The duel</div>' +
         '<div class="duelvs">' +
-          '<a href="/duel/' + encodeURIComponent(B.login) + '-vs-' + encodeURIComponent(A.login) + '">' +
-            esc(A.login) + '</a><span class="vsbolt">VS</span><a href="#" onclick="return dSwap()">' +
-            esc(B.login) + '</a></div></div>' +
+          '<button class="duelname" data-who="' + esc(A.login) + '">' + esc(A.login) + '</button>' +
+          '<span class="vsbolt">VS</span>' +
+          '<button class="duelname" data-who="' + esc(B.login) + '">' + esc(B.login) + '</button>' +
+        '</div></div>' +
       '<div class="duelstage">' +
         '<div>' + futColHtml(A, aWins) + '</div>' +
         '<div class="dmid">' +
@@ -3206,7 +3229,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           '<div class="dactions dreveal">' +
             '<button class="dbtn primary" onclick="dShare(event)">Copy duel link</button>' +
             '<button class="dbtn" onclick="dPick()">Challenge someone else</button>' +
-            '<a class="dbtn" href="/">Back to board</a>' +
+            '<button class="dbtn" onclick="dSwap()">Swap corners</button>' +
+            '<button class="dbtn dback">Back to board</button>' +
           '</div>' +
           '<div id="dpick"></div>' +
         '</div>' +
@@ -3295,8 +3319,17 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     void el.offsetWidth; // restart the animation
     el.classList.add('bump');
   }
+  // Clicking either name opens that player's card, right here, no navigation.
+  document.addEventListener('click', function(ev){
+    if (!ev.target.closest) return;
+    if (ev.target.closest('.dback')) return duelNav('/', null);
+    const b = ev.target.closest('.duelname');
+    if (!b) return;
+    const r = rowOf(b.getAttribute('data-who'));
+    if (r) openCard(r.login, r.score || 0);
+  });
   function dSwap(){
-    location.href = '/duel/' + encodeURIComponent(DUEL.b) + '-vs-' + encodeURIComponent(DUEL.a);
+    goDuel(DUEL.b, DUEL.a);
     return false;
   }
   function dShare(ev){
@@ -3315,16 +3348,16 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const host = document.getElementById('dpick');
     if (!host) return;
     if (host.innerHTML){ host.innerHTML = ''; return; }
+    // "someone else" means neither of the two already in this duel
     const rows = ((GLOBAL && GLOBAL.allTime) || []).filter(function(r){
-      return r.login !== DUEL.a; }).slice(0, 24);
+      return r.login !== DUEL.a && r.login !== DUEL.b; }).slice(0, 24);
     host.innerHTML = '<div class="chalgrid">' + rows.map(function(r){
       return '<button class="chal" data-foe="' + esc(r.login) + '">' +
         avatar(r.login, r.avatar) + esc(r.login) +
         '<span class="r">' + dOvr(r) + '</span></button>'; }).join('') + '</div>';
     host.querySelectorAll('.chal').forEach(function(btn){
       btn.addEventListener('click', function(){
-        location.href = '/duel/' + encodeURIComponent(DUEL.a) + '-vs-' +
-          encodeURIComponent(btn.getAttribute('data-foe'));
+        goDuel(DUEL.a, btn.getAttribute('data-foe'));
       });
     });
   }
@@ -3360,8 +3393,30 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     goDuel(rows[i].login, rows[j].login);
   }
   function goDuel(a, b){
-    location.href = '/duel/' + encodeURIComponent(a) + '-vs-' + encodeURIComponent(b);
+    duelNav('/duel/' + encodeURIComponent(a) + '-vs-' + encodeURIComponent(b), { a: a, b: b });
   }
+  // Client-side navigation. The duel is just another view of the board data we
+  // already hold, so there is nothing to fetch — swap the state, push the URL
+  // (so refresh/share/back still work), and repaint. duelAnimated resets, so
+  // every new match plays its rounds out instead of snapping to the result.
+  function duelNav(url, duel){
+    if (cardEl) closeCard();
+    DUEL = duel;
+    duelAnimated = false;
+    try { history.pushState({ duel: duel }, '', url); } catch (e) {}
+    lastKey = '';
+    paint();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    catch (e) { window.scrollTo(0, 0); }
+  }
+  // Back/forward: re-read the URL and repaint the matching view.
+  window.addEventListener('popstate', function(){
+    const m = new RegExp('^/duel/([A-Za-z0-9-]{1,39})-vs-([A-Za-z0-9-]{1,39})$').exec(location.pathname);
+    DUEL = m ? { a: m[1], b: m[2] } : null;
+    duelAnimated = false;
+    lastKey = '';
+    paint();
+  });
 
   // ---- landing hero --------------------------------------------------------
   // A fake Claude Code session on the water wash — the product as it actually
@@ -3535,7 +3590,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     // the race, the later GLOBAL arrival must still trigger a repaint or the
     // sidebar stays skeleton forever.
     const key = JSON.stringify([CODE, mode, metric, NOTFOUND, ME, ME_WHO, data,
-      GLOBAL && GLOBAL.roomsList]);
+      DUEL, GLOBAL && GLOBAL.roomsList]);
     if (key === lastKey) return; // nothing changed — don't repaint the poll
     lastKey = key;
     measure(); // fluid chart + meter sizing from the current viewport
