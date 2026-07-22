@@ -423,6 +423,57 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
            border-radius: 999px; padding: 3px 8px; transition: background .15s, color .15s; }
   .shbtn:hover { background: var(--accent); color: #fff; }
   .shbtn svg { width: 10px; height: 10px; display: block; }
+  /* duel — on every row; opens the rival picker */
+  .duelbtn { display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+             font: 700 9.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+             color: var(--muted); background: none; border: 1px solid var(--line2);
+             border-radius: 999px; padding: 3px 8px;
+             transition: background .15s, color .15s, border-color .15s; }
+  .duelbtn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .duelbtn svg { width: 11px; height: 11px; display: block; }
+  /* rival picker: click duel on a row, pick the opponent from this list */
+  .dpk { position: fixed; inset: 0; z-index: 220; display: flex; align-items: center;
+         justify-content: center; padding: 24px; background: rgba(35,28,15,.30);
+         backdrop-filter: blur(16px) saturate(1.15);
+         -webkit-backdrop-filter: blur(16px) saturate(1.15);
+         opacity: 0; transition: opacity .18s ease; }
+  :root[data-theme="dark"] .dpk { background: rgba(12,9,5,.60); }
+  .dpk.on { opacity: 1; }
+  .dpk-panel { width: min(420px, 94vw); max-height: min(560px, 84vh); display: flex;
+               flex-direction: column; background: var(--card); border: 1px solid var(--line2);
+               border-radius: 18px; overflow: hidden;
+               box-shadow: 0 24px 70px -20px rgba(0,0,0,.5);
+               transform: scale(.96) translateY(8px);
+               transition: transform .22s cubic-bezier(.2,.85,.28,1); }
+  .dpk.on .dpk-panel { transform: none; }
+  .dpk-hd { display: flex; align-items: center; gap: 9px; padding: 14px 16px;
+            border-bottom: 1px solid var(--line2); }
+  .dpk-hd > svg { width: 17px; height: 17px; color: var(--accent); flex: none; }
+  .dpk-hd .t { min-width: 0; }
+  .dpk-hd .t b { display: block; font: 800 12.5px/1.2 var(--mono); letter-spacing: .07em;
+                 text-transform: uppercase; }
+  .dpk-hd .t span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dpk-x { margin-left: auto; flex: none; width: 30px; height: 30px; cursor: pointer;
+           display: flex; align-items: center; justify-content: center;
+           background: none; border: 0; border-radius: 999px; color: var(--muted);
+           transition: background .15s, color .15s; }
+  .dpk-x:hover { background: var(--hover); color: var(--ink); }
+  .dpk-x svg { width: 16px; height: 16px; }
+  .dpk-list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .dpk-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+             background: none; border: 0; border-radius: 12px; padding: 8px 10px;
+             cursor: pointer; color: var(--ink); font: inherit; transition: background .12s; }
+  .dpk-row:hover { background: var(--hover); }
+  .dpk-row .ava { width: 30px; height: 30px; flex: none; }
+  .dpk-row .who { min-width: 0; flex: 1; }
+  .dpk-row .who b { display: block; font-size: 13.5px; font-weight: 650;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dpk-row .who span { display: block; color: var(--muted); font: 11px var(--mono); margin-top: 1px; }
+  .dpk-row .ovr { flex: none; color: var(--muted); font: 700 11px var(--mono);
+                  letter-spacing: .04em; }
+  .dpk-row:hover .ovr { color: var(--accent); }
+  .dpk-empty { padding: 22px 16px; text-align: center; color: var(--muted); font-size: 13px; }
   .shmenu { position: absolute; z-index: 210; width: 252px; background: var(--card);
             border-radius: 14px; box-shadow: 0 12px 40px -8px rgba(0,0,0,.35), 0 0 0 1px var(--line2);
             padding: 10px; animation: shpop .18s cubic-bezier(.22,1,.36,1) both; }
@@ -1567,7 +1618,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
 <div class="shell">
 
   <aside class="side">
-    <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>mostcracked</b>
+    <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>Mostcracked</b>
       <span class="livechip"><span class="dot"></span>LIVE</span></div>
     <div class="navsec">Menu</div>
     <a class="nav" id="navHome" href="/">
@@ -2629,6 +2680,13 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         '<path d="M4 12v7a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19v-7M12 15V3M7.5 7.5 12 3l4.5 4.5"/>'+
       '</svg>share</button>';
   }
+  // Duel button — every row gets one; opens the rival picker with this
+  // player already in the left corner.
+  function duelBtnHtml(login){
+    return '<button class="duelbtn" title="duel '+esc(login)+'" '+
+      'onclick="event.stopPropagation();duelPick(\\''+esc(login)+'\\')">'+
+      fenceSvg()+'duel</button>';
+  }
   // Top-3 podium: 2nd | 1st | 3rd, the leader centered and raised.
   function podiumHtml(top, withRoom){
     return '<div class="podium">'+top.map(function(r){
@@ -2682,7 +2740,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
         '<div class="rk'+(r.rank===1?' r1':'')+'">'+(r.rank<10?'0':'')+r.rank+'</div>'+
         avatar(login, r.avatar)+
         '<div><div class="nm"><a href="https://github.com/'+encodeURIComponent(login)+
-        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+awardsHtml(r)+chips+streak+delta+'</div>'+
+        '" target="_blank" rel="noopener" style="text-decoration:none" onclick="event.stopPropagation()" title="'+esc(login)+' on GitHub">'+esc(login)+'</a>'+you+agentMark(r)+shareBtnHtml(r, withRoom)+duelBtnHtml(login)+awardsHtml(r)+chips+streak+delta+'</div>'+
         '<div class="meta"><span class="mseg">'+fmt(r.prompts)+' prompts \\u00B7 '+fmt(r.edits)+' edits</span>'+usageBit(r)+'</div></div>'+
         meterHtml(r.score, max)+
         '<div class="sc">'+fmt(r.score)+'</div></div>';
@@ -3122,7 +3180,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     // the invite card's deliberate frosted-glass reveal only.
     else if (CODE && ROOM) crumb.innerHTML = esc(ROOM.room.name);
     else if (CODE) crumb.textContent = 'Room';
-    else if (DUEL) crumb.textContent = 'duel';
+    else if (DUEL) crumb.textContent = 'Duel';
     else if (CHARTPG) crumb.textContent = 'the weekly 25';
     else crumb.textContent = 'Global';
     document.getElementById('segAll').className = mode==='allTime' ? 'on' : '';
@@ -3606,6 +3664,60 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const foe = i > 0 ? rows[i - 1] : rows[i + 1] || rows.find(function(r){ return r.login !== login; });
     if (!foe) return;
     goDuel(login, foe.login);
+  }
+  // "duel" on a leaderboard row: this player takes the left corner, the modal
+  // lists everyone else on the board to fill the right one. If the viewer is
+  // on the board (and isn't the challenger) they float to the top — the duel
+  // you actually want is almost always "them vs me".
+  let dpkEl = null;
+  function dpkClose(){
+    if (!dpkEl) return;
+    dpkEl.remove(); dpkEl = null;
+    document.removeEventListener('keydown', dpkKey);
+  }
+  function dpkKey(ev){ if (ev.key === 'Escape') dpkClose(); }
+  function duelPick(login){
+    dpkClose();
+    const me = (ME_WHO && ME_WHO.login) || null;
+    let rows = ((GLOBAL && GLOBAL.allTime) || []).filter(function(r){
+      return r.login !== login; });
+    if (me && me !== login){
+      rows = rows.filter(function(r){ return r.login === me; })
+        .concat(rows.filter(function(r){ return r.login !== me; }));
+    }
+    const list = rows.length ? rows.map(function(r){
+      return '<button class="dpk-row" data-foe="'+esc(r.login)+'">'+
+        avatar(r.login, r.avatar)+
+        '<span class="who"><b>'+esc(r.login)+(me === r.login ? ' \\u00B7 you' : '')+'</b>'+
+        '<span>Global #'+(r.rank || '-')+' \\u00B7 '+fmt(r.score)+' pts</span></span>'+
+        '<span class="ovr">'+dOvr(r)+' OVR</span></button>';
+    }).join('') : '<div class="dpk-empty">Nobody else on the board yet.</div>';
+    const m = document.createElement('div');
+    m.className = 'dpk';
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-label', 'pick a rival for '+login);
+    m.innerHTML = '<div class="dpk-panel">'+
+      '<div class="dpk-hd">'+fenceSvg()+
+        '<span class="t"><b>Pick a rival</b><span>'+esc(login)+' vs \\u2026</span></span>'+
+        '<button class="dpk-x" aria-label="close">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '+
+          'stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>'+
+      '</div>'+
+      '<div class="dpk-list">'+list+'</div></div>';
+    m.addEventListener('click', function(ev){
+      if (ev.target === m) return dpkClose();
+      if (ev.target.closest('.dpk-x')) return dpkClose();
+      const btn = ev.target.closest('.dpk-row');
+      if (!btn) return;
+      const foe = btn.getAttribute('data-foe');
+      dpkClose();
+      goDuel(login, foe);
+    });
+    document.body.appendChild(m);
+    dpkEl = m;
+    document.addEventListener('keydown', dpkKey);
+    requestAnimationFrame(function(){ m.classList.add('on'); });
   }
   // Hero action. Signed in (we learn who you are from the ?me= link the CLI
   // opens): you vs a random player. Otherwise two random players, so a stranger
