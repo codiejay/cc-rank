@@ -312,6 +312,31 @@ app.get("/api/version", async (c) => {
   return json(c, { sha });
 });
 
+// npm-era replacement for /api/version: which version of the `mostcracked`
+// npm package is current — feeds the auto-update check in post-migration
+// clients (update-check.mjs). The client pins the package name; we only ever
+// name a version, so this can't redirect anyone to other code. KV-cached 1h
+// so registry.npmjs.org is hit ~once an hour total.
+let cliVerMemo = { at: 0, version: "" };
+app.get("/api/client-version", async (c) => {
+  if (cliVerMemo.version && Date.now() - cliVerMemo.at < 3600_000)
+    return json(c, { version: cliVerMemo.version });
+  let version = (await c.env.OG_KV.get("client:npmver")) || "";
+  if (!version) {
+    try {
+      const res = await fetch("https://registry.npmjs.org/mostcracked/latest", {
+        headers: { accept: "application/json", "user-agent": "ccrank" },
+      });
+      if (res.ok) version = String(((await res.json()) as any)?.version || "");
+    } catch { /* fall through */ }
+    if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) version = "";
+    if (version) c.executionCtx.waitUntil(c.env.OG_KV.put("client:npmver", version, { expirationTtl: 3600 }));
+  }
+  if (!version) return json(c, { error: "unavailable" }, 503);
+  cliVerMemo = { at: Date.now(), version };
+  return json(c, { version });
+});
+
 // ---- backfill --------------------------------------------------------------
 // One-time import of a new user's last 7 days of LOCAL Claude Code history
 // (the CLI scans ~/.claude/projects transcripts and sends per-day counts).
@@ -1041,8 +1066,8 @@ const homeOg = (c: any) => {
   const origin = new URL(c.req.url).origin;
   return {
     login: "",
-    title: "ccrank · who's the most cracked?",
-    desc: "The global leaderboard for Claude Code & Codex. Every prompt and every file edit scores a point — live.",
+    title: "mostcracked · who's the most cracked?",
+    desc: "The global leaderboard for coding agents. Every prompt and every file edit puts a point on the board, live.",
     image: origin + "/og/home.png",
     url: origin,
   };
@@ -1085,8 +1110,8 @@ app.get("/duel/:pair", async (c) => {
   track(c, "page_view", { props: { page: "duel", a, b } });
   return c.html(dashboardHtml(null, {
     login: a,
-    title: `${a} vs ${b} · ccrank duel`,
-    desc: `Head to head on the global Claude Code leaderboard: prompts, edits, lines shipped, dollars burned. Who's more cracked?`,
+    title: `${a} vs ${b} · mostcracked duel`,
+    desc: `Head to head on the global leaderboard: prompts, edits, lines shipped, dollars burned. Who's more cracked?`,
     image: origin + "/og/home.png",
     url: origin + "/duel/" + a + "-vs-" + b,
   }, "duel", { a, b }));
@@ -1141,7 +1166,7 @@ async function ogData(db: D1Database, login: string): Promise<OgData | null> {
 // card, then a crawler hitting any datacenter gets bytes in ~50ms instead of
 // a multi-second cold render — X's image fetcher gives up on slow origins.
 function ogKey(d: OgData): string {
-  return "og:" + d.row.login.toLowerCase() + ":" + d.row.score + ":" + d.row.rank + ":" + d.total +
+  return "og2:" + d.row.login.toLowerCase() + ":" + d.row.score + ":" + d.row.rank + ":" + d.total +
     ":" + d.row.awards.map((a) => a.label).join("+");
 }
 async function ogRender(d: OgData): Promise<ArrayBuffer | null> {
@@ -1201,7 +1226,7 @@ app.get("/og/home.png", async (c) => {
     rank: i + 1, login: r.login, avatar: r.avatar, score: r.score }));
   if (!top.length) return c.notFound();
   track(c, "og_card", { props: { login: "@home" } });
-  const key = "og:home:" + utcDay(Date.now()) + ":" + top.map((t) => t.score).join("-");
+  const key = "og2:home:" + utcDay(Date.now()) + ":" + top.map((t) => t.score).join("-");
   const hit = await c.env.OG_KV.get(key, "arrayBuffer");
   const png = hit || (await homeOgRender({
     stats, top, heat: heat.results, site: new URL(c.req.url).host,
@@ -1286,8 +1311,8 @@ app.get("/u/:login", async (c) => {
   track(c, "page_view", { props: { page: "share", login: data.row.login } });
   return c.html(dashboardHtml(null, {
     login: data.row.login,
-    title: `${data.row.login} is #${data.row.rank} of ${data.total} on ccrank`,
-    desc: `${data.row.score} pts · ${data.row.prompts} prompts · ${data.row.edits} edits on the global Claude Code leaderboard.`,
+    title: `${data.row.login} is #${data.row.rank} of ${data.total} on mostcracked`,
+    desc: `${data.row.score} pts · ${data.row.prompts} prompts · ${data.row.edits} edits on the global leaderboard.`,
     image: `${origin}/og/${encodeURIComponent(data.row.login)}.png?v=${data.row.score}`,
     url: `${origin}/u/${encodeURIComponent(data.row.login)}`,
   }));
@@ -1366,7 +1391,7 @@ app.get("/chart", async (c) => {
     login: e1.login,
     title: `the weekly 25 · ${chartWeekLabel(chart.week)}`,
     desc: `${e1.login} is this week's most cracked with ${e1.score} pts. ` +
-      `${chart.entries.length} charted on the global Claude Code leaderboard.`,
+      `${chart.entries.length} charted on the global leaderboard.`,
     image: `${origin}/og/chart.png?v=${chart.week}`,
     url: `${origin}/chart`,
   }, "chart"));

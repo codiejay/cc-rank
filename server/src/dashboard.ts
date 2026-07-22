@@ -18,7 +18,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
   const ogTags = og ? `
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="ccrank" />
+<meta property="og:site_name" content="mostcracked" />
 <meta property="og:title" content="${escAttr(og.title)}" />
 <meta property="og:description" content="${escAttr(og.desc)}" />
 <meta property="og:url" content="${escAttr(og.url)}" />
@@ -40,7 +40,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&display=swap" />
-<title>mostcracked · the global leaderboard for Claude Code &amp; Codex</title>
+<title>mostcracked · who&rsquo;s the most cracked?</title>
 <script>
   // Theme before first paint (no light flash). One-time hard reset: this push
   // forces dark on EVERYONE once (even returning users who'd picked light),
@@ -1664,8 +1664,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       <svg viewBox="0 0 24 18" fill="currentColor" aria-hidden="true" style="padding:1px 0"><path d="M2 6l4 4 6-8 6 8 4-4-2 11H4L2 6z"/><rect x="3.5" y="16" width="17" height="1.8" rx=".9"/></svg>
       the weekly 25</a>
     <div class="spacer"></div>
-    <div class="sidefoot"><a href="https://github.com/codiejay/cc-rank">github &#8599;</a>
-      &nbsp;&middot;&nbsp; counts only, never code</div>
+    <div class="sidefoot">counts only, never code</div>
   </aside>
 
   <main class="main">
@@ -2195,8 +2194,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       ? '1. Verify the invite is valid with GET '+S+'/api/rooms/'+code+'/check. If \\"reason\\":\\"room_not_found\\" -> tell me the invite code looks wrong and stop.\\n'
       : '';
     const cmd = code
-      ? 'npx github:codiejay/cc-rank join '+code+AG
-      : 'npx github:codiejay/cc-rank login'+AG;
+      ? 'npx mostcracked join '+code+AG
+      : 'npx mostcracked login'+AG;
     let n = code ? 1 : 0;
     return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score. When you ask me to pick between fixed options, use your interactive multiple-choice prompt if you have one (e.g. AskUserQuestion) so I can pick with the arrow keys; otherwise just ask me plainly.\\n\\nFollow these steps exactly, in order:\\n'+
       preflight+
@@ -2204,7 +2203,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       (++n)+'. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard, so just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this. I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
       (++n)+'. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
       (++n)+'. When it finishes, show me what it printed: my verified GitHub login and the dashboard link.\\n'+
-      (++n)+'. BACKFILL so I do not start at the bottom of the board: setup auto-imports my last 7 days from my LOCAL '+tool+' history (per-day counts only, never my code; one shot per GitHub account; server-enforced so it can never double-count). Find the \\"Backfilled\\" line in the output and tell me exactly what it credited, e.g. \\"backfilled 120 prompts + 80 edits from your last 7 days\\". If the output mentions no backfill at all, run npx github:codiejay/cc-rank backfill in the background, wait for it to finish, and relay its result. If it says nothing was credited or already backfilled, just tell me that plainly.\\n'+
+      (++n)+'. BACKFILL so I do not start at the bottom of the board: setup auto-imports my last 7 days from my LOCAL '+tool+' history (per-day counts only, never my code; one shot per GitHub account; server-enforced so it can never double-count). Find the \\"Backfilled\\" line in the output and tell me exactly what it credited, e.g. \\"backfilled 120 prompts + 80 edits from your last 7 days\\". If the output mentions no backfill at all, run npx mostcracked backfill in the background, wait for it to finish, and relay its result. If it says nothing was credited or already backfilled, just tell me that plainly.\\n'+
       (++n)+'. Tell me to restart '+tool+' so my prompts and edits start counting.';
   }
   // Three-way copy control: Claude Code / Codex / Both. Each button copies the

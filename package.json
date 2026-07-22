@@ -1,10 +1,11 @@
 {
-  "name": "ccrank",
-  "version": "0.1.0",
-  "description": "A Claude Code leaderboard — rank you and your friends by prompts & edits, right in the terminal.",
+  "name": "mostcracked",
+  "version": "1.0.0",
+  "description": "The global Claude Code leaderboard — every prompt and every edit scores a point, live at mostcracked.com.",
   "type": "module",
   "bin": {
-    "ccrank": "bin/ccrank.mjs"
+    "ccrank": "bin/ccrank.mjs",
+    "mostcracked": "bin/ccrank.mjs"
   },
   "files": [
     "bin",

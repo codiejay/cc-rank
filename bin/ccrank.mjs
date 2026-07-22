@@ -228,18 +228,20 @@ function installScripts() {
     copyFileSync(join(PKG_ROOT, "lib", f), join(CC_DIR, f));
 }
 
-// Record which commit is now installed so the daily auto-update check doesn't
-// spawn a pointless update. `update --applied-sha <sha>` knows exactly (the
-// auto-updater pins the sha it ran); every other path asks the server,
-// best-effort — worst case is one redundant background update tomorrow.
+// Record which version is now installed so the auto-update check doesn't
+// spawn a pointless update. `update --applied-version <v>` knows exactly (the
+// auto-updater pins the version it ran; legacy pre-npm updaters pass
+// --applied-sha); every other path asks the server, best-effort — worst case
+// is one redundant background update tomorrow.
 async function recordVersion() {
+  if (flags["applied-version"]) { recordApplied(flags["applied-version"]); return; }
   if (flags["applied-sha"]) { recordApplied(flags["applied-sha"]); return; }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 2500);
   try {
-    const res = await fetch(server + "/api/version", { signal: ctrl.signal });
-    const sha = (await res.json())?.sha;
-    if (sha) recordApplied(sha);
+    const res = await fetch(server + "/api/client-version", { signal: ctrl.signal });
+    const v = (await res.json())?.version;
+    if (v) recordApplied(v);
   } catch { /* cosmetic */ } finally { clearTimeout(timer); }
 }
 
@@ -426,7 +428,7 @@ async function create() {
   console.log(`  Code:      ${c.y(code)}`);
   console.log(`  Dashboard${opened ? " (opening)" : ""}: ${c.dim(roomUrl)}`);
   console.log(`\n  Invite friends. Each of them runs:`);
-  console.log(`    ${c.b(`npx github:codiejay/cc-rank join ${code}`)}\n`);
+  console.log(`    ${c.b(`npx mostcracked join ${code}`)}\n`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(restartMsg());
 }
@@ -467,7 +469,7 @@ async function joinRoom() {
   const opened = openBrowser(roomUrl);
   console.log(`\n  Room board${opened ? " (opening)" : ""}:  ${c.y(roomUrl)}`);
   console.log(`  Global board:    ${c.dim(withMe(cfg.server + "/", cfg))}`);
-  console.log(`  What is ccrank?  ${c.dim("https://github.com/codiejay/cc-rank")}`);
+  console.log(`  What is ccrank?  ${c.dim("https://mostcracked.com")}`);
   if (wrapped) console.log(c.dim(`  (kept your existing statusline; rank is appended to it)`));
   console.log(restartMsg());
 }
