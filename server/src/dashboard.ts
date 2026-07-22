@@ -37,6 +37,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
 <meta name="theme-color" content="#F4F3EF" />${ogTags}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='106 106 300 300'%3E%3Cg fill='%23736C5D'%3E%3Crect x='118' y='318' width='76' height='76' rx='19'/%3E%3Crect x='118' y='218' width='76' height='76' rx='19'/%3E%3Crect x='318' y='318' width='76' height='76' rx='19'/%3E%3C/g%3E%3Cg fill='%23D97757'%3E%3Crect x='218' y='318' width='76' height='76' rx='19'/%3E%3Crect x='218' y='218' width='76' height='76' rx='19'/%3E%3Crect x='218' y='118' width='76' height='76' rx='19'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&display=swap" />
 <title>mostcracked · the global leaderboard for Claude Code &amp; Codex</title>
 <script>
   // Theme before first paint (no light flash). One-time hard reset: this push
@@ -138,6 +141,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           padding: 18px 14px 20px; display: flex; flex-direction: column; gap: 4px;
           position: sticky; top: 0; height: 100vh; overflow-y: auto; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
+  .brandlink { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
   .mark { display: grid; place-items: center; flex: none; }
   .mark svg { width: 26px; height: 26px; display: block; }
   .brand b { font-size: 15px; letter-spacing: -.02em; white-space: nowrap; }
@@ -1323,35 +1327,61 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
      hero on a desktop with no second set of numbers to keep in sync. */
   .duelpg { padding-bottom: 40px; }
   .duelhd { margin: 2px 0 26px; }
-  /* the fight poster: one banner, split down a skewed seam, each corner washed
-     in its own colour so the whole page's gold-vs-coral coding starts here */
+  /* the fight poster: eyebrow on top, then the two names in heavy italic caps
+     with their corner-colour glow, a diagonal slash cutting the whole band,
+     and a big double-shadowed VS riding the slash. Boxing card, not a form. */
+  .deyebrow { text-align: center; font: 800 10px/1 var(--mono); letter-spacing: .34em;
+              text-transform: uppercase; color: var(--accent);
+              margin-bottom: clamp(10px,1.6vw,16px);
+              text-shadow: 0 0 14px rgba(217,119,87,.45); }
   .dband { position: relative; display: flex; align-items: center; justify-content: center;
-           overflow: hidden; border: 1px solid var(--line); border-radius: 18px;
-           background: var(--card); padding: clamp(14px,2vw,22px) clamp(8px,1.6vw,20px); }
-  .dband::before { content: ''; position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(100deg, var(--gold-soft) 0%, transparent 44%,
-                transparent 56%, rgba(217,119,87,.15) 100%); }
-  .dband::after { content: ''; position: absolute; top: -30%; bottom: -30%; left: 50%;
-    width: 1px; transform: translateX(-50%) rotate(11deg);
-    background: linear-gradient(180deg,transparent,var(--line2),transparent); }
+           padding: clamp(8px,1.2vw,14px) 0; }
+  /* the slash: one diagonal blade through the middle of the poster */
+  .dband::before { content: ''; position: absolute; left: 50%; top: -14px; bottom: -14px;
+                   width: 2.5px; transform: translateX(-50%) rotate(21deg);
+                   background: linear-gradient(180deg, transparent,
+                     var(--gold) 32%, var(--accent) 68%, transparent);
+                   filter: drop-shadow(0 0 7px rgba(217,119,87,.55)); opacity: .85; }
+  /* a low ember glow pooled behind the whole band so the names sit in light */
+  .dband::after { content: ''; position: absolute; inset: -26px -8px;
+                  pointer-events: none;
+                  background: radial-gradient(52% 115% at 50% 50%,
+                    rgba(217,119,87,.10), transparent 72%); }
   .dcorner { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; background: none;
              border: 0; padding: 0; cursor: pointer; display: flex; flex-direction: column;
-             gap: 6px; }
+             gap: 7px; }
   .dcorner.a { align-items: flex-end; text-align: right; }
   .dcorner.b { align-items: flex-start; text-align: left; }
-  .dcorner .duelname { font: 800 clamp(15px,2.4vw,30px)/1.1 var(--cond); letter-spacing: .03em;
+  .dcorner .duelname { font: italic 900 clamp(17px,2.9vw,36px)/1.1 var(--cond);
+                       letter-spacing: .02em; transform: skewX(-6deg);
                        text-transform: uppercase; max-width: 100%; overflow: hidden;
-                       text-overflow: ellipsis; white-space: nowrap; }
-  .dcorner.a .duelname { color: var(--gold); }
-  .dcorner.b .duelname { color: var(--accent); }
+                       text-overflow: ellipsis; white-space: nowrap;
+                       -webkit-background-clip: text; background-clip: text;
+                       color: transparent; }
+  .dcorner.a .duelname { background-image: linear-gradient(180deg, #FFE9B0 8%,
+                           var(--gold) 55%, #B77E1D 96%);
+                         filter: drop-shadow(0 2px 0 rgba(0,0,0,.3))
+                                 drop-shadow(0 0 16px var(--gold-glow)); }
+  .dcorner.b .duelname { background-image: linear-gradient(180deg, #FFC9AE 8%,
+                           var(--accent) 55%, #A64A1F 96%);
+                         filter: drop-shadow(0 2px 0 rgba(0,0,0,.3))
+                                 drop-shadow(0 0 16px rgba(217,119,87,.4)); }
+  .dcorner.a:hover .duelname, .dcorner.b:hover .duelname {
+    filter: brightness(1.18) drop-shadow(0 2px 0 rgba(0,0,0,.3))
+            drop-shadow(0 0 20px rgba(255,214,140,.5)); }
   .dcorner .seed { font: 700 10px/1 var(--mono); letter-spacing: .16em; color: var(--muted);
                    text-transform: uppercase; white-space: nowrap; }
-  .dcorner:hover .duelname { filter: brightness(1.2); }
-  .vsbolt { position: relative; z-index: 1; flex: none; margin: 0 clamp(8px,1.8vw,26px);
-            padding: 7px 12px; border: 1px solid var(--line2); border-radius: 9px;
-            background: var(--bg); transform: skewX(-11deg);
-            font: italic 800 clamp(13px,1.7vw,19px)/1 var(--sans); color: var(--ink); }
-  .vsbolt b { display: block; transform: skewX(11deg); letter-spacing: .04em; }
+  /* the VS: big, hard-slanted, gold bleeding into coral, punched off the page
+     with a solid offset shadow and an ember glow — it rides the slash */
+  .vsbolt { position: relative; z-index: 1; flex: none; margin: 0 clamp(14px,2.4vw,34px);
+            transform: skewX(-13deg) rotate(-3deg);
+            font: italic 900 clamp(26px,3.8vw,52px)/1 var(--cond); letter-spacing: .02em;
+            background: linear-gradient(115deg, #FFD98A 18%, var(--gold) 42%,
+              var(--accent) 62%, #FF9E77 88%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(2.5px 3px 0 rgba(0,0,0,.5))
+                    drop-shadow(0 0 18px rgba(217,119,87,.5)); }
+  .vsbolt b { display: block; }
 
   /* Phone/tablet: the two cards share the top row (they're the point — you want
      them next to each other), the scoreline runs full width beneath. Desktop
@@ -1371,8 +1401,19 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   .fc { position: relative; width: 100%; max-width: 300px; aspect-ratio: 540 / 820;
         container-type: inline-size; user-select: none; transition: transform .16s ease;
         filter: drop-shadow(0 16px 24px rgba(0,0,0,.55)) drop-shadow(0 0 9px var(--fcglow)); }
+  /* phones keep the compact pair; anything laptop-sized gets the hero cut */
+  @media (min-width: 900px) { .fc { max-width: 365px; } }
   .fc.win { filter: drop-shadow(0 16px 26px rgba(0,0,0,.55))
                     drop-shadow(0 0 22px var(--fcglow)); }
+  /* save-to-PNG: quiet pill under the card — the card is the loud one */
+  .fcsave { display: inline-flex; align-items: center; gap: 7px; margin-top: 2px;
+            font: 700 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+            color: var(--muted); background: none; border: 1px solid var(--line2);
+            border-radius: 999px; padding: 8px 14px; cursor: pointer;
+            transition: color .15s ease, border-color .15s ease; }
+  .fcsave:hover { color: var(--ink); border-color: var(--muted); }
+  .fcsave svg { width: 13px; height: 13px; display: block; }
+  .fcsave.busy { opacity: .5; pointer-events: none; }
   .fcsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   /* the portrait, cut to the card: masked to the shield so it can never spill,
      then feathered three ways — a radial vignette, a diagonal fade into the
@@ -1418,7 +1459,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
            font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
   .fcovrl { left: 13.4%; top: 63.6%; font-size: 4.4cqw; font-weight: 800;
             letter-spacing: .16em; opacity: .62; }
-  .fcname { left: 38.5%; top: 50.4%; font-weight: 800; letter-spacing: .01em;
+  .fcname { left: 38.5%; top: 50.4%; font-weight: 800; letter-spacing: .035em;
             text-transform: uppercase; }
   .fcrole { left: 39%; top: 59.6%; font-size: 5.6cqw; font-weight: 600;
             letter-spacing: .1em; opacity: .74; }
@@ -1522,6 +1563,11 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
             box-shadow: 0 8px 22px rgba(217,119,87,.28); }
   .dshare:hover { filter: brightness(1.06); }
   .dshare svg { width: 16px; height: 16px; }
+  /* the poster download: same block, ghost finish — share stays the loud CTA */
+  .dshare.ghost { background: none; border: 1px solid var(--line2); color: var(--ink);
+                  box-shadow: none; margin-top: 9px; }
+  .dshare.ghost:hover { filter: none; border-color: var(--accent); color: var(--accent); }
+  .dshare.busy { opacity: .5; pointer-events: none; }
   .dactions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px;
               margin-top: 9px; }
   .dbtn { font: 600 12.5px var(--sans); cursor: pointer; border-radius: 11px;
@@ -1618,7 +1664,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
 <div class="shell">
 
   <aside class="side">
-    <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>Mostcracked</b>
+    <div class="brand"><a class="brandlink" href="/" aria-label="Mostcracked home"><span class="mark" aria-hidden="true"><svg viewBox="106 106 300 300"><g fill="#736C5D"><rect x="118" y="318" width="76" height="76" rx="19"/><rect x="118" y="218" width="76" height="76" rx="19"/><rect x="318" y="318" width="76" height="76" rx="19"/></g><g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/><rect x="218" y="218" width="76" height="76" rx="19"/><rect x="218" y="118" width="76" height="76" rx="19"/></g></svg></span><b>Mostcracked</b></a>
       <span class="livechip"><span class="dot"></span>LIVE</span></div>
     <div class="navsec">Menu</div>
     <a class="nav" id="navHome" href="/">
@@ -3407,8 +3453,270 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     return '<div class="fcol">' + futCardHtml(r, won, tone) +
       '<div class="fcsub"><span class="handle">@' + esc(r.login) + ' · <b>' + dRole(r) +
       '</b> · ' + DSTYLE[dRole(r)] + '</span>' +
-      (pills ? '<div class="fcpills">' + pills + '</div>' : '') + '</div></div>';
+      (pills ? '<div class="fcpills">' + pills + '</div>' : '') +
+      '<button class="fcsave" data-login="' + esc(r.login) + '" data-tone="' + tone +
+        '" onclick="dSaveCard(this)">' + dlSvg() + '<span>Save card</span></button>' +
+      '</div></div>';
   }
+  // ---- save card as PNG ----------------------------------------------------
+  // The DOM card can't be screenshotted from JS, so the export rebuilds it as
+  // ONE self-contained SVG in the same 540x820 space every label already lives
+  // in (same numbers, no second layout), with the portrait and the webfont
+  // inlined as data URIs, then rasterises it at 2x through a canvas.
+  function dlSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
+  }
+  async function dDataUrl(url){
+    const b = await (await fetch(url)).blob();
+    return await new Promise(function(res, rej){
+      const fr = new FileReader();
+      fr.onload = function(){ res(fr.result); };
+      fr.onerror = rej;
+      fr.readAsDataURL(b);
+    });
+  }
+  // Saira Condensed 600/700/800, latin cut, as inline @font-face — an SVG
+  // rendered through an <img> can't reach the network, so the bytes ride along.
+  let dFontCssCache = null;
+  async function dFontCss(){
+    if (dFontCssCache !== null) return dFontCssCache;
+    try {
+      const css = await (await fetch('https://fonts.googleapis.com/css2' +
+        '?family=Saira+Condensed:wght@600;700;800&display=swap')).text();
+      const out = [];
+      const re = /\\/\\* latin \\*\\/\\s*@font-face\\s*\\{([^}]+)\\}/g;
+      let m;
+      while ((m = re.exec(css))){
+        const w = (m[1].match(/font-weight:\\s*(\\d+)/) || [])[1];
+        const u = (m[1].match(/url\\((https:[^)]+\\.woff2)\\)/) || [])[1];
+        if (!w || !u) continue;
+        out.push('@font-face{font-family:SairaC;font-style:normal;font-weight:' + w +
+          ';src:url(' + (await dDataUrl(u)) + ') format("woff2")}');
+      }
+      dFontCssCache = out.join('');
+    } catch (e){ dFontCssCache = ''; } // offline: system condensed steps in
+    return dFontCssCache;
+  }
+  function dCardSvg(r, tone, avatar, fontCss){
+    const t = DTONE[tone];
+    const pc = function(x, y){ return [(x / 100 * 540).toFixed(1), (y / 100 * 820).toFixed(1)]; };
+    const F = "font-family:'SairaC','Saira Condensed','Arial Narrow',sans-serif";
+    const txt = function(x, y, size, weight, s, extra){
+      return '<text x="' + x + '" y="' + y + '" style="' + F + ';font-weight:' + weight +
+        ';font-size:' + size + 'px;fill:' + t.ink + '"' + (extra || '') + '>' + s + '</text>';
+    };
+    // avatar box: .fcav1 = left 11cqw, top 6cqw, 78cqw square (cqw = 5.4px)
+    const ax = 59.4, ay = 32.4, aw = 421.2;
+    const nm = String(r.login).replace(/[-_].*$/, '').slice(0, 13);
+    const nsz = (nm.length > 7 ? 11 * 7 / nm.length : 11) * 5.4;
+    let st = '';
+    DSTY.forEach(function(top, row){
+      DSTX.forEach(function(left, col){
+        const s = DSTATS[row * 3 + col];
+        const p = pc(left, top);
+        st += '<text x="' + p[0] + '" y="' + (+p[1] + 39.5) + '" text-anchor="middle" style="' +
+          F + ';fill:' + t.ink + '">' +
+          '<tspan style="font-weight:800;font-size:46.4px">' + dRate(r, s) + '</tspan>' +
+          '<tspan dx="8.6" style="font-weight:600;font-size:33.5px;letter-spacing:1.7px" ' +
+            'opacity=".76">' + s.k + '</tspan></text>';
+      });
+    });
+    const rrect = function(x, y, w, h){
+      return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+        '" fill="' + t.rule + '"/>'; };
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="540" height="820" viewBox="0 0 540 820">' +
+      '<style>' + fontCss + '</style>' +
+      '<defs>' +
+        '<clipPath id="xshield"><path d="' + DSHIELD + '"/></clipPath>' +
+        // the three portrait feathers, multiplied by nesting the masks
+        '<radialGradient id="xgr" gradientUnits="userSpaceOnUse" cx="' + (ax + aw * .5) +
+          '" cy="' + (ay + aw * .44) + '" r="' + (aw * .8) + '" ' +
+          'gradientTransform="translate(' + (ax + aw * .5) + ' 0) scale(.775 1) translate(-' +
+            (ax + aw * .5) + ' 0)">' +
+          '<stop offset=".62" stop-color="#fff"/><stop offset=".88" stop-color="#fff" stop-opacity="0"/>' +
+        '</radialGradient>' +
+        '<linearGradient id="xgh" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".16" stop-color="#fff"/>' +
+          '<stop offset=".84" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="xgv" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset=".01" stop-color="#fff" stop-opacity="0"/><stop offset=".2" stop-color="#fff"/>' +
+          '<stop offset=".76" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>' +
+        '</linearGradient>' +
+        '<radialGradient id="xvig" cx=".52" cy=".4" r=".74">' +
+          '<stop offset=".46" stop-color="#000" stop-opacity="0"/>' +
+          '<stop offset=".78" stop-color="' + t.vig1 + '"/>' +
+          '<stop offset="1" stop-color="' + t.vig2 + '"/>' +
+        '</radialGradient>' +
+        '<mask id="xm1"><rect x="' + ax + '" y="' + ay + '" width="' + aw + '" height="' + aw +
+          '" fill="url(#xgr)"/></mask>' +
+        '<mask id="xm2"><rect x="' + ax + '" y="' + ay + '" width="' + aw + '" height="' + aw +
+          '" fill="url(#xgh)" mask="url(#xm1)"/></mask>' +
+        '<mask id="xm3"><rect x="' + ax + '" y="' + ay + '" width="' + aw + '" height="' + aw +
+          '" fill="url(#xgv)" mask="url(#xm2)"/></mask>' +
+      '</defs>' +
+      dFrameSvg('X', t).replace('class="fcsvg"', 'width="540" height="820"') +
+      '<g clip-path="url(#xshield)" mask="url(#xm3)">' +
+        (avatar ? '<image href="' + avatar + '" x="' + ax + '" y="' + ay + '" width="' + aw +
+          '" height="' + aw + '" preserveAspectRatio="xMidYMid slice"/>' : '') +
+        '<rect x="' + ax + '" y="' + ay + '" width="' + aw + '" height="' + aw +
+          '" fill="url(#xvig)"/>' +
+      '</g>' +
+      txt(67.5, 406.7, 102.6, 700, dOvr(r), ' dominant-baseline="text-before-edge" letter-spacing="-1"') +
+      txt(72.4, 521.5, 23.8, 800, 'OVR \\u00B7 #' + (r.rank || '-'),
+        ' dominant-baseline="text-before-edge" letter-spacing="3.8" opacity=".62"') +
+      rrect(186.8, 415, 1.7, 123) +
+      txt(207.9, 413.3, nsz, 800, esc(nm.toUpperCase()),
+        ' dominant-baseline="text-before-edge" letter-spacing="' + (nsz * .035).toFixed(1) + '"') +
+      txt(210.6, 488.7, 30.2, 600, dRole(r),
+        ' dominant-baseline="text-before-edge" letter-spacing="3" opacity=".74"') +
+      rrect(54, 549.4, 432, 1.7) + st +
+      rrect(202.5, 572.4, 1.7, 142.7) + rrect(337.5, 572.4, 1.7, 142.7) +
+      '<g transform="translate(248.4,733.1) scale(.144 .1476)" opacity=".8">' +
+        // dMarkSvg's viewBox is 106..406: shift into place, then scale 300->43.2x44.3
+        '<g transform="translate(-106,-106)">' +
+        dMarkSvg(t.mk1, t.mk2).replace('<svg viewBox="106 106 300 300" aria-hidden="true">', '')
+          .replace('</svg>', '') +
+        '</g></g>' +
+      '</svg>';
+  }
+  async function dSaveCard(btn){
+    const login = btn.getAttribute('data-login');
+    const tone = btn.getAttribute('data-tone');
+    const r = rowOf(login);
+    if (!r || btn.classList.contains('busy')) return;
+    btn.classList.add('busy');
+    try {
+      const src = r.avatar || ('https://github.com/' + encodeURIComponent(login) + '.png?size=400');
+      let avatar = '';
+      try { avatar = await dDataUrl(src); } catch (e){} // no portrait beats no card
+      const svg = dCardSvg(r, tone, avatar, await dFontCss());
+      const img = new Image();
+      await new Promise(function(res, rej){
+        img.onload = res; img.onerror = rej;
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      });
+      const cv = document.createElement('canvas');
+      cv.width = 1080; cv.height = 1640;
+      const ctx = cv.getContext('2d');
+      // solid stage behind the shield: WhatsApp & co. flatten PNG alpha to
+      // white, so a transparent surround ships ugly. Same dark as the poster.
+      ctx.fillStyle = '#16130E';
+      ctx.fillRect(0, 0, 1080, 1640);
+      ctx.drawImage(img, 0, 0, 1080, 1640);
+      const blob = await new Promise(function(res){ cv.toBlob(res, 'image/png'); });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = login + '-mostcracked-card.png';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    } catch (e){
+      console.log('[card export] failed', e);
+    } finally {
+      btn.classList.remove('busy');
+    }
+  }
+
+  // ---- save the duel as one poster ----------------------------------------
+  // Both cards on a dark 1920x1080 stage: eyebrow, the two names around a big
+  // VS, the diagonal blade, final score, handles, site mark. Reuses dCardSvg
+  // for each card — ids get a per-side suffix so the two shields' gradients
+  // and masks can't collide inside one SVG document.
+  function dCardNested(r, tone, avatar, side, x, y, w, h){
+    return dCardSvg(r, tone, avatar, '')
+      .replace(/(id="|#)x(shield|gr|gh|gv|vig|m1|m2|m3)/g, '$1x' + side + '$2')
+      .replace(/(id="|#)f([ulhk])X/g, '$1f$2X' + side)
+      .replace('<svg xmlns="http://www.w3.org/2000/svg" width="540" height="820"',
+        '<svg x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '"');
+  }
+  function dDuelSvg(A, B, avA, avB, fontCss, sc){
+    const F = "font-family:'SairaC','Saira Condensed','Arial Narrow',sans-serif";
+    const name = function(login, anchor, x, fill){
+      const s = String(login).toUpperCase();
+      const fs = Math.min(60, Math.round(60 * 13 / Math.max(13, s.length)));
+      return '<g transform="translate(' + x + ' 158) skewX(-8)">' +
+        '<text text-anchor="' + anchor + '" style="' + F + ';font-weight:800;font-size:' +
+        fs + 'px;fill:' + fill + '" letter-spacing="1.5">' + esc(s) + '</text></g>';
+    };
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">' +
+      '<style>' + fontCss + '</style>' +
+      '<defs>' +
+        '<radialGradient id="pemb" cx=".5" cy=".45" r=".62">' +
+          '<stop offset="0" stop-color="#D97757" stop-opacity=".16"/>' +
+          '<stop offset="1" stop-color="#D97757" stop-opacity="0"/></radialGradient>' +
+        '<linearGradient id="pvs" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop offset=".18" stop-color="#FFD98A"/><stop offset=".42" stop-color="#E0A32E"/>' +
+          '<stop offset=".62" stop-color="#D97757"/><stop offset=".88" stop-color="#FF9E77"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="pblade" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="#E0A32E" stop-opacity="0"/>' +
+          '<stop offset=".32" stop-color="#E0A32E"/><stop offset=".68" stop-color="#D97757"/>' +
+          '<stop offset="1" stop-color="#D97757" stop-opacity="0"/></linearGradient>' +
+      '</defs>' +
+      '<rect width="1920" height="1080" fill="#16130E"/>' +
+      '<rect width="1920" height="1080" fill="url(#pemb)"/>' +
+      // the blade yields to the scoreline: two segments, gap over "4 - 0"
+      '<g transform="translate(960 585) rotate(18)" fill="url(#pblade)">' +
+        '<rect x="-2.5" y="-430" width="5" height="445"/>' +
+        '<rect x="-2.5" y="175" width="5" height="255"/></g>' +
+      '<text x="960" y="78" text-anchor="middle" style="' + F + ';font-weight:700;font-size:26px' +
+        ';fill:#D97757" letter-spacing="9">MOSTCRACKED DUEL</text>' +
+      name(A.login, 'end', 900, '#E8B84B') +
+      name(B.login, 'start', 1020, '#E28763') +
+      dCardNested(A, 'a', avA, 'A', 180, 200, 500, 759) +
+      dCardNested(B, 'b', avB, 'B', 1240, 200, 500, 759) +
+      '<g transform="translate(960 560) skewX(-12) rotate(-3)">' +
+        '<text text-anchor="middle" style="' + F + ';font-weight:800;font-size:180px' +
+        ';fill:url(#pvs)">VS</text></g>' +
+      '<text x="960" y="680" text-anchor="middle" style="' + F + ';font-weight:800;font-size:84px' +
+        ';fill:#F4EFE5">' + sc.wa + ' \\u2013 ' + sc.wb + '</text>' +
+      '<text x="960" y="726" text-anchor="middle" style="' + F + ';font-weight:600;font-size:22px' +
+        ';fill:#8B867B" letter-spacing="5">ACROSS SIX ROUNDS</text>' +
+      '<text x="430" y="1006" text-anchor="middle" style="' + F + ';font-weight:600;font-size:27px' +
+        ';fill:rgba(232,184,75,.8)" letter-spacing="2">@' + esc(A.login) + '</text>' +
+      '<text x="1490" y="1006" text-anchor="middle" style="' + F + ';font-weight:600;font-size:27px' +
+        ';fill:rgba(226,135,99,.85)" letter-spacing="2">@' + esc(B.login) + '</text>' +
+      '<text x="960" y="1048" text-anchor="middle" style="' + F + ';font-weight:600;font-size:24px' +
+        ';fill:#6B665B" letter-spacing="7">MOSTCRACKED.COM</text>' +
+      '</svg>';
+  }
+  async function dSaveDuel(btn){
+    if (!DUEL || btn.classList.contains('busy')) return;
+    const A = rowOf(DUEL.a), B = rowOf(DUEL.b);
+    if (!A || !B) return;
+    btn.classList.add('busy');
+    try {
+      const av = async function(r){
+        try {
+          return await dDataUrl(r.avatar ||
+            ('https://github.com/' + encodeURIComponent(r.login) + '.png?size=400'));
+        } catch (e){ return ''; }
+      };
+      const svg = dDuelSvg(A, B, await av(A), await av(B), await dFontCss(),
+        duelScore || { wa: 0, wb: 0 });
+      const img = new Image();
+      await new Promise(function(res, rej){
+        img.onload = res; img.onerror = rej;
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      });
+      const cv = document.createElement('canvas');
+      cv.width = 2400; cv.height = 1350;
+      cv.getContext('2d').drawImage(img, 0, 0, 2400, 1350);
+      const blob = await new Promise(function(res){ cv.toBlob(res, 'image/png'); });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = A.login + '-vs-' + B.login + '-duel.png';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    } catch (e){
+      console.log('[duel export] failed', e);
+    } finally {
+      btn.classList.remove('busy');
+    }
+  }
+
   // 3D tilt + glare that tracks the pointer (desktop only, pure cosmetics).
   function bindDuelTilt(){
     document.querySelectorAll('.fc').forEach(function(card){
@@ -3467,7 +3775,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     const drawn = wa === wb;
     duelScore = { wa: wa, wb: wb, pa: pa };
     return '<section class="duelpg">' +
-      '<div class="duelhd"><div class="dband">' +
+      '<div class="duelhd"><div class="deyebrow">mostcracked duel</div><div class="dband">' +
           corner('a', A) + '<span class="vsbolt"><b>VS</b></span>' + corner('b', B) +
         '</div></div>' +
       '<div class="duelstage">' +
@@ -3494,6 +3802,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           '<div class="dreveal">' +
             '<button class="dshare" onclick="dShare(event)">' + shareSvg() +
               '<span>Share the duel</span></button>' +
+            '<button class="dshare ghost" onclick="dSaveDuel(this)">' + dlSvg() +
+              '<span>Save the duel card</span></button>' +
             '<div class="dactions">' +
               '<button class="dbtn" onclick="dPick()">' + fenceSvg() + '<span>New rival</span></button>' +
               '<button class="dbtn" onclick="dSwap()">' + swapSvg() + '<span>Swap corners</span></button>' +
@@ -3920,6 +4230,56 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     '</div>';
   }
 
+  // Duel skeleton: same poster + stage geometry as duelHtml(). The two names
+  // are already real (they come from the URL), so the header paints final on
+  // first frame; ghost blocks hold the spots where cards and stats will land.
+  function duelSkeletonHtml(){
+    const corner = function(side, login){
+      return '<button class="dcorner ' + side + '" data-who="' + esc(login) + '">' +
+        '<span class="duelname">' + esc(login) + '</span>' +
+        '<span class="sk" style="width:118px;height:10px"></span></button>'; };
+    const card = function(){
+      return '<div class="fcol">' +
+        '<div style="position:relative;width:100%;max-width:300px;aspect-ratio:540/820;' +
+          '-webkit-mask-image:' + DMASK + ';mask-image:' + DMASK + ';' +
+          '-webkit-mask-size:100% 100%;mask-size:100% 100%">' +
+          '<span class="sk skblk" style="position:absolute;inset:0;border-radius:0"></span>' +
+        '</div>' +
+        '<div class="fcsub"><span class="sk" style="width:170px;height:12px"></span></div>' +
+      '</div>'; };
+    const srow = function(){
+      return '<div class="dsrow">' +
+        '<span class="dsv a"><span class="sk" style="width:22px;height:13px"></span></span>' +
+        '<span class="dsbar l"></span>' +
+        '<span class="dslab"><span class="sk" style="width:26px;height:9px"></span></span>' +
+        '<span class="dsbar r"></span>' +
+        '<span class="dsv b"><span class="sk" style="width:22px;height:13px"></span></span>' +
+      '</div>'; };
+    return '<section class="duelpg">' +
+      '<div class="duelhd"><div class="deyebrow">mostcracked duel</div><div class="dband">' +
+        corner('a', DUEL.a) + '<span class="vsbolt"><b>VS</b></span>' + corner('b', DUEL.b) +
+      '</div></div>' +
+      '<div class="duelstage">' +
+        '<div class="dcol-a">' + card() + '</div>' +
+        '<div class="dmid">' +
+          '<div class="dft">Full time · six rounds</div>' +
+          '<div class="dscore" style="display:flex;align-items:center;justify-content:center">' +
+            '<span class="sk" style="width:.62em;height:.78em"></span><em>–</em>' +
+            '<span class="sk" style="width:.62em;height:.78em"></span></div>' +
+          '<div class="dpips">' + [0,1,2,3,4,5].map(function(){
+            return '<i class="dpip"></i>'; }).join('') + '</div>' +
+          '<div class="ddomhd"><span class="sk" style="width:30px;height:10px"></span>' +
+            '<span class="lab">Dominance</span>' +
+            '<span class="sk" style="width:30px;height:10px"></span></div>' +
+          '<div class="ddom" style="background:var(--track)"></div>' +
+          '<div class="dradarwrap"><span class="sk" style="width:min(220px,72%);' +
+            'aspect-ratio:220/208;border-radius:24%"></span></div>' +
+          '<div class="dsrows">' + [0,1,2,3,4,5].map(srow).join('') + '</div>' +
+        '</div>' +
+        '<div class="dcol-b">' + card() + '</div>' +
+      '</div></section>';
+  }
+
   // ---- page paint ----------------------------------------------------------
   function totalsFromRows(rows){
     return rows.reduce(function(t, r){
@@ -3945,7 +4305,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       return;
     }
     if (!data){ // first fetch still in flight — show skeletons, not a blank page
-      content.innerHTML = (CODE || CHARTPG || DUEL ? '' : heroHtml()) + skeletonHtml();
+      content.innerHTML = DUEL ? duelSkeletonHtml()
+        : (CODE || CHARTPG ? '' : heroHtml()) + skeletonHtml();
       return;
     }
     const rows = (mode === 'today' ? data.today : data.allTime) || [];
