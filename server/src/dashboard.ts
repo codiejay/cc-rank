@@ -1353,6 +1353,28 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   .chal:hover { transform: translateY(-1px); border-color: var(--accent); }
   .chal .ava { width: 24px; height: 24px; font-size: 10px; }
   .chal span.r { color: var(--muted); font: 700 10px var(--mono); }
+  /* the invite: what a stranger sees under a shared duel */
+  .dinv { max-width: 620px; margin: 46px auto 0; text-align: center;
+          border-top: 1px solid var(--line); padding-top: 34px; }
+  .dinv-eyebrow { font: 800 11px/1 var(--mono); letter-spacing: .3em; text-transform: uppercase;
+                  color: var(--accent); }
+  .dinv-h { margin: 12px 0 0; font-size: clamp(24px,3.2vw,32px); font-weight: 750;
+            letter-spacing: -.02em; text-wrap: balance; }
+  .dinv-sub { margin: 10px auto 0; max-width: 46ch; color: var(--ink3); font-size: 14px;
+              line-height: 1.65; }
+  .dinv-steps { list-style: none; margin: 22px auto 0; padding: 0; max-width: 430px;
+                display: flex; flex-direction: column; gap: 10px; text-align: left; }
+  .dinv-steps li { display: flex; align-items: center; gap: 12px; font-size: 13.5px;
+                   color: var(--ink2); background: var(--card); border: 1px solid var(--line);
+                   border-radius: 12px; padding: 11px 14px; }
+  .dinv-steps b { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid;
+                  place-items: center; font: 800 11px/1 var(--mono); color: #fff;
+                  background: var(--accent); }
+  .dinv-cta { margin-top: 22px; max-width: 430px; margin-left: auto; margin-right: auto; }
+  .dinv-out:not(:empty) { margin-top: 10px; }
+  .dinv-foot { margin: 18px auto 0; max-width: 44ch; font: 11.5px/1.6 var(--mono);
+               color: var(--muted); }
+  .hpill.hduel svg { width: 17px; height: 17px; }
   .duelempty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 26px 10px; }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
@@ -1710,9 +1732,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
               '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>'+
               '<path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>Share</button>'+
             '<button class="pc-share" onclick="duelFrom(\\''+esc(login)+'\\')">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '+
-              'stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5 20 9l-9.5 9.5"/>'+
-              '<path d="M4 20l5.5-5.5"/><path d="M3.5 3.5 9 9l-4.5 4.5"/></svg>Duel</button>'+
+              fenceSvg()+'Duel</button>'+
             '<span class="pc-duelhint">'+(ME_WHO && ME_WHO.login !== login ? 'you vs them' : 'vs the rank above')+'</span>'+
             '<a class="pc-github" href="https://github.com/'+encodeURIComponent(login)+'" '+
               'target="_blank" rel="noopener">GitHub \\u2197</a>'+
@@ -2937,6 +2957,16 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   ];
   const DWEIGHT = { PMT: .22, EDT: .22, LNS: .18, BRN: .14, STK: .12, REC: .12 };
   const DROLE3 = { 'ONE-SHOT': '1S', 'CONDUCTOR': 'CND', 'ENGINE': 'ENG', 'HEAVY LIFTER': 'HVY' };
+  // Fencing: two crossed foils with bell guards — the white-jacket, masked
+  // sword sport. Used for every duel affordance so the action reads instantly.
+  function fenceSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M3 3.6 14.2 14.8"/><path d="M21 3.6 9.8 14.8"/>' +
+      '<circle cx="15.2" cy="15.8" r="1.9"/><circle cx="8.8" cy="15.8" r="1.9"/>' +
+      '<path d="M16.5 17.1 19 19.6"/><path d="M7.5 17.1 5 19.6"/>' +
+      '<path d="M17.6 20.7 20.9 17.4"/><path d="M6.4 20.7 3.1 17.4"/></svg>';
+  }
   function dRecs(r){
     return (r.records || []).reduce(function(t, x){ return t + (x.n || 0); }, 0);
   }
@@ -2978,6 +3008,9 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
   const DWING = [[310,16],[396,50],[386,112],[336,58]];
   const DGEM = [[200,2],[215,15],[200,28],[185,15]];
   function dPolyStr(pts){ return pts.map(function(pt){ return pt.join(','); }).join(' '); }
+  // Same outline as the SVG, in percentages, so CSS can clip overlays to it.
+  const DCLIP = 'polygon(' + DOUT.map(function(pt){
+    return (pt[0] / 400 * 100).toFixed(2) + '% ' + (pt[1] / 560 * 100).toFixed(2) + '%'; }).join(',') + ')';
   function dRays(id){
     let out = '';
     for (let i = 0; i < 11; i++){
@@ -3050,7 +3083,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       '<div class="fchead"><div class="fcovr">' + dOvr(r) + '</div>' +
       '<div class="fcrole">' + DROLE3[dRole(r)] + '</div><div class="fcrule"></div>' +
       MARK + '<div class="fcrk">#' + (r.rank || '-') + '</div></div>' +
-      '<div class="fcglare"></div>' +
+      '<div class="fcglare" style="clip-path:' + DCLIP + '"></div>' +
       '<div class="fclower"><div class="fcnamewrap"><div class="fcname">' +
       esc(String(r.login).replace(/[-_].*$/, '').slice(0, 10)) + '</div></div>' +
       '<div class="fcstats"><div class="fcsrule"></div>' + st + '</div></div>' +
@@ -3136,7 +3169,26 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           '<div id="dpick"></div>' +
         '</div>' +
         '<div>' + futColHtml(B, !aWins) + '</div>' +
-      '</div></section>';
+      '</div>' + duelInviteHtml() + '</section>';
+  }
+  // The conversion moment: a stranger landed here from a shared link. Getting a
+  // card runs entirely through the agent prompt — nobody types a command.
+  function duelInviteHtml(){
+    return '<section class="dinv">' +
+      '<div class="dinv-eyebrow">Your turn</div>' +
+      '<h2 class="dinv-h">No card. No comeback.</h2>' +
+      '<p class="dinv-sub">Get on the board and you get your own card, same six stats. ' +
+        'Then send the link back and let the numbers do the trash talk.</p>' +
+      '<ol class="dinv-steps">' +
+        '<li><b>1</b><span>Copy the prompt below. One click, nothing to read.</span></li>' +
+        '<li><b>2</b><span>Paste it into Claude Code or Codex. It sets itself up.</span></li>' +
+        '<li><b>3</b><span>Your card goes live. Pick a target and duel back.</span></li>' +
+      '</ol>' +
+      '<div class="dinv-cta">' + agentPicker('dinvOut', 'null') +
+        '<div id="dinvOut" class="dinv-out"></div></div>' +
+      '<p class="dinv-foot">Only counts leave your machine. ' +
+        'Never your code, your prompts, or your file contents.</p>' +
+    '</section>';
   }
   function dSwap(){
     location.href = '/duel/' + encodeURIComponent(DUEL.b) + '-vs-' + encodeURIComponent(DUEL.a);
@@ -3185,6 +3237,23 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
     if (!foe) return;
     goDuel(login, foe.login);
   }
+  // Hero action. Signed in (we learn who you are from the ?me= link the CLI
+  // opens): you vs a random player. Otherwise two random players, so a stranger
+  // still sees what a duel looks like before installing anything.
+  function duelRandom(){
+    const rows = ((GLOBAL && GLOBAL.allTime) || []).filter(function(r){ return (r.score || 0) > 0; });
+    if (rows.length < 2) return;
+    const me = (ME_WHO && ME_WHO.login) || null;
+    const mine = me && rows.some(function(r){ return r.login === me; });
+    if (mine){
+      const foes = rows.filter(function(r){ return r.login !== me; });
+      return goDuel(me, foes[Math.floor(Math.random() * foes.length)].login);
+    }
+    const i = Math.floor(Math.random() * rows.length);
+    let j = Math.floor(Math.random() * (rows.length - 1));
+    if (j >= i) j++;
+    goDuel(rows[i].login, rows[j].login);
+  }
   function goDuel(a, b){
     location.href = '/duel/' + encodeURIComponent(a) + '-vs-' + encodeURIComponent(b);
   }
@@ -3227,7 +3296,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           '</g></svg>'+
         '<div class="hero-head"><h1>Every prompt counts.</h1>'+
           '<p><span>Every Claude Code user on one board. Every prompt you send and file Claude edits scores you a point, live.</span><br>'+
-            '<span>Want a board that\\u2019s just your crew? Make a private room.</span></p></div>'+
+            '<span>Every player gets a card. Duel anyone on the board.</span></p></div>'+
         '<div class="heroterm'+(heroPlayed ? ' noanim' : '')+'" role="img" '+
           'aria-label="Claude Code session with the ccrank statusline showing your live rank">'+
           '<div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i>'+
@@ -3244,12 +3313,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
           '</div>'+
         '</div>'+
         '<div class="hero-pills">'+
-          '<button class="hpill" onclick="jumpTo(\\'join\\')">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>'+
-            'Join a room</button>'+
-          '<button class="hpill" onclick="jumpTo(\\'create\\')">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'+
-            'Create a room</button>'+
+          '<button class="hpill hduel" onclick="duelRandom()">'+fenceSvg()+
+            (ME_WHO && ME_WHO.login ? 'Duel a random rival' : 'Watch a random duel')+'</button>'+
         '</div>'+
       '</section>';
     heroPlayed = true;
