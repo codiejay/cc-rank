@@ -5,7 +5,8 @@
 // og: per-user share meta for /u/:login pages — values are server-derived
 // (validated login + numbers), escaped here anyway as defense-in-depth.
 export interface OgMeta { login: string; title: string; desc: string; image: string; url: string }
-export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"): string {
+export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" | "duel",
+  duel?: { a: string; b: string }): string {
   // Defense-in-depth: even though the caller only passes a CODE_RE-validated
   // code, harden the serializer so a value could never break out of the inline
   // <script>. JSON.stringify quotes/escapes it, then we unicode-escape <, > and
@@ -533,6 +534,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
                display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
   .pc-foot a:hover { color: var(--ink); }
   .pc-foot .pc-share { margin-left: auto; }
+  /* only the FIRST action pushes right — the rest sit beside it as one group */
+  .pc-foot .pc-share ~ .pc-share { margin-left: 0; }
   .pc-foot a.pc-github { margin-left: 0; }
   .pc-share { border: 1px solid var(--line2); background: var(--card); color: var(--ink);
               border-radius: 9px; padding: 7px 12px; cursor: pointer; font: 700 11.5px/1 var(--sans);
@@ -1203,6 +1206,154 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     .mnum { font-size: 20px; }
     .mdelta { font-size: 10px; line-height: 1.4; }
   }
+  /* COMPACT HERO: on desktop the hero is a two-column band — pitch + CTAs on
+     the left, the terminal on the right — instead of a tall stack. Cuts the
+     landing fold roughly in half so the board is visible without scrolling. */
+  @media (min-width: 900px) {
+    .hero { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+            column-gap: 30px; row-gap: 12px; align-items: center;
+            padding: 22px 28px; }
+    .hero-head { grid-column: 1; grid-row: 1; text-align: left; margin: 0;
+                 max-width: none; }
+    .hero-copyrow { grid-column: 1; grid-row: 2; }
+    .hero > .hero-pills:not(.hero-agents) { grid-column: 1; grid-row: 3; }
+    .heroterm { grid-column: 2; grid-row: 1 / span 3; margin: 0; width: 100%; }
+    .hero-head h1 { font-size: clamp(24px, 2.7vw, 30px); }
+    .hero-head p { margin-top: 6px; font-size: 13px; line-height: 1.6; }
+    .hero-pills { justify-content: flex-start; gap: 8px; }
+    .hero-agents .hpill { padding: 8px 12px; font-size: 12.5px; }
+    .hero-agents .hlbl { font-size: 12.5px; }
+  }
+  /* ---- duel: TOTY-cut cards + head-to-head ------------------------------- */
+  .duelpg { padding-bottom: 40px; }
+  .duelhd { text-align: center; margin: 4px 0 22px; }
+  .duelhd .eyebrow { font-size: 11px; letter-spacing: .3em; color: var(--accent);
+                     font-weight: 800; text-transform: uppercase; }
+  .duelvs { display: flex; align-items: center; justify-content: center; gap: 16px;
+            margin-top: 12px; flex-wrap: wrap; }
+  .duelvs a { font-size: clamp(20px,3.4vw,34px); font-weight: 800; letter-spacing: .02em;
+              text-transform: uppercase; color: var(--ink); text-decoration: none; }
+  .duelvs a:hover { color: var(--accent); }
+  .vsbolt { font-size: clamp(15px,2.2vw,22px); font-weight: 800; color: #fff;
+            background: var(--accent); padding: 4px 12px; border-radius: 6px;
+            transform: skewX(-12deg); }
+  .duelstage { display: grid; grid-template-columns: 340px minmax(0,1fr) 340px; gap: 22px;
+               align-items: start; }
+  @media (max-width: 1040px) { .duelstage { grid-template-columns: 1fr; max-width: 400px;
+                               margin: 0 auto; } }
+  .fcol { display: flex; flex-direction: column; align-items: center; }
+  .fc { position: relative; width: 340px; height: 476px; transition: transform .16s ease;
+        filter: drop-shadow(0 22px 34px rgba(0,0,0,.5)); }
+  .fc.win { filter: drop-shadow(0 22px 34px rgba(0,0,0,.5))
+                    drop-shadow(0 0 40px rgba(230,182,85,.32)); }
+  .cardsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .fcart { position: absolute; top: 54px; left: 59%; transform: translateX(-45%);
+           width: 162px; height: 162px; object-fit: cover; z-index: 2;
+           filter: drop-shadow(0 16px 30px rgba(0,0,0,.6)) saturate(1.06);
+           -webkit-mask-image: linear-gradient(180deg,#000 80%,transparent 100%);
+           mask-image: linear-gradient(180deg,#000 80%,transparent 100%); }
+  .fccrown { position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+              width: 42px; z-index: 6; color: var(--gold);
+              filter: drop-shadow(0 3px 8px rgba(0,0,0,.55)); }
+  .fccrown svg { width: 100%; height: auto; display: block; }
+  .fcglare { position: absolute; inset: 0; pointer-events: none; z-index: 7;
+             background: radial-gradient(circle at var(--mx,72%) var(--my,14%),
+                         rgba(255,255,255,.10), transparent 44%); }
+  .fchead { position: absolute; top: 62px; left: 44px; display: flex; flex-direction: column;
+            align-items: center; gap: 4px; z-index: 3; }
+  .fcovr { font-size: 52px; font-weight: 800; line-height: .9; color: #F0CE84;
+           text-shadow: 0 2px 14px rgba(0,0,0,.6); }
+  .fcrole { font-size: 12px; letter-spacing: .1em; color: #E6B655; font-weight: 800; }
+  .fcrule { width: 28px; height: 1px;
+            background: linear-gradient(90deg,transparent,rgba(230,182,85,.7),transparent); }
+  .fcmark { width: 19px; height: 19px; opacity: .95; }
+  .fcrk { font-size: 10px; font-weight: 800; color: #171208; letter-spacing: .04em;
+          background: linear-gradient(160deg,#F4DCA0,#E6B655); border-radius: 4px; padding: 3px 6px; }
+  .fclower { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 62px 108px;
+             display: flex; flex-direction: column; z-index: 3; }
+  .fcnamewrap { text-align: center; padding: 8px 0 9px; position: relative; }
+  .fcnamewrap::before, .fcnamewrap::after { content: ''; position: absolute; left: 50%;
+    transform: translateX(-50%); height: 1px;
+    background: linear-gradient(90deg,transparent,rgba(230,182,85,.8),transparent); }
+  .fcnamewrap::before { top: 0; width: 200px; }
+  .fcnamewrap::after { bottom: 0; width: 156px; }
+  .fcname { font-size: 24px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+            color: #F0CE84; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+  .fcstats { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 3px 0; margin-top: 10px;
+             align-items: center; position: relative; padding-bottom: 10px; }
+  .fcstats::after { content: ''; position: absolute; left: 50%; bottom: 0;
+    transform: translateX(-50%); width: 40px; height: 1px;
+    background: linear-gradient(90deg,transparent,rgba(230,182,85,.6),transparent); }
+  .fcsrule { width: 1px; height: 100%; grid-row: 1 / span 3; grid-column: 2;
+             background: linear-gradient(180deg,transparent,rgba(230,182,85,.5),transparent); }
+  .fst { display: flex; align-items: baseline; gap: 7px; justify-content: center; }
+  .fst b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: #F0CE84; }
+  .fst i { font-style: normal; font-size: 11px; letter-spacing: .1em; color: #b89a55; font-weight: 800; }
+  .fccrest { position: absolute; left: 0; right: 0; bottom: 74px; text-align: center;
+             font-size: 8px; letter-spacing: .3em; color: rgba(230,182,85,.6);
+             font-weight: 800; z-index: 3; }
+  .fcsub { width: 340px; margin-top: 10px; display: flex; flex-direction: column;
+           align-items: center; gap: 8px; }
+  .fcsub .handle { font-size: 12px; color: var(--muted); }
+  .fcsub .handle b { color: var(--ink); }
+  .fcpills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  /* center column */
+  .dmid { text-align: center; }
+  .dft { font-size: 11px; letter-spacing: .3em; color: var(--muted); font-weight: 800; }
+  .dscore { font-size: clamp(56px,8vw,96px); font-weight: 800; line-height: 1; margin: 6px 0 2px;
+            font-variant-numeric: tabular-nums; }
+  .dscore em { font-style: normal; color: var(--muted); font-size: .6em; vertical-align: .12em;
+               padding: 0 6px; }
+  .ddom { display: flex; align-items: center; gap: 12px; margin: 14px 4px 6px; font-size: 12px;
+          font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ddom .bar { flex: 1; height: 9px; border-radius: 6px; background: var(--track); overflow: hidden; }
+  .ddom .bar i { display: block; height: 100%; background: linear-gradient(90deg,var(--gold),var(--accent));
+                 transition: width .9s cubic-bezier(.22,1,.36,1); }
+  .ddomlab { font-size: 10px; letter-spacing: .22em; color: var(--muted); font-weight: 800; }
+  .dsrow { display: grid; grid-template-columns: 3ch 1fr 4.2em 1fr 3ch; gap: 9px; align-items: center;
+           margin: 8px 0; font-variant-numeric: tabular-nums; }
+  .dsv { font-size: 14px; font-weight: 800; color: var(--muted); }
+  .dsv.w { color: var(--gold); }
+  .dslab { font-size: 10px; letter-spacing: .18em; color: var(--muted); font-weight: 800; text-align: center; }
+  .dsbar { height: 7px; border-radius: 4px; background: var(--track); overflow: hidden; display: flex; }
+  .dsbar.l { justify-content: flex-end; }
+  .dsbar i { display: block; height: 100%; width: 0; transition: width .8s cubic-bezier(.22,1,.36,1); }
+  .dsbar.l i { background: var(--gold); border-radius: 4px 0 0 4px; }
+  .dsbar.r i { background: var(--accent); border-radius: 0 4px 4px 0; }
+  .dwin { margin: 26px 0 4px; }
+  .dwin .dft { color: var(--accent); }
+  .dwinname { font-size: clamp(22px,3vw,30px); font-weight: 800; text-transform: uppercase;
+              letter-spacing: .03em; margin-top: 6px; }
+  .dwinsub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .drec { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+          margin-top: 22px; padding: 4px 18px 10px; text-align: left; }
+  .dreccap { text-align: center; font-size: 10px; letter-spacing: .24em; color: var(--muted);
+             font-weight: 800; padding: 12px 0 4px; }
+  .drecrow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; padding: 8px 2px;
+             font-size: 13px; border-top: 1px solid var(--line); align-items: baseline;
+             font-variant-numeric: tabular-nums; }
+  .drecrow b { font-weight: 800; }
+  .drecrow .l { text-align: right; }
+  .drecrow .c { font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-align: center; }
+  .drecrow .win { color: var(--gold); }
+  .dactions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 22px; }
+  .dbtn { font: 600 13px var(--sans); cursor: pointer; border-radius: 11px; padding: 11px 18px;
+          border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .dbtn:hover { border-color: var(--accent); }
+  .dbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .dbtn.primary:hover { filter: brightness(1.06); }
+  /* challenge picker */
+  .pc-duelhint { font: 10px/1 var(--mono); color: var(--muted); letter-spacing: .04em;
+                 align-self: center; }
+  .chalgrid { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 6px; }
+  .chal { display: flex; align-items: center; gap: 8px; background: var(--card);
+          border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px 6px 6px;
+          cursor: pointer; font: 600 12.5px var(--sans); color: var(--ink);
+          transition: border-color .15s, transform .15s; }
+  .chal:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .chal .ava { width: 24px; height: 24px; font-size: 10px; }
+  .chal span.r { color: var(--muted); font: 700 10px var(--mono); }
+  .duelempty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 26px 10px; }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -1249,6 +1400,8 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
   let CODE = ${initial};
   // /chart: the weekly 25's permanent home — always shows the latest chart.
   const CHARTPG = ${page === "chart" ? "true" : "false"};
+  // Duel pair. Logins are LOGIN_RE-validated server-side before they get here.
+  const DUEL = ${duel ? JSON.stringify(duel) : "null"};
   let mode = "allTime";      // leaderboard range (segmented control)
   let metric = "score";      // chart metric (metric strip tabs)
   let GLOBAL = null, ROOM = null, NOTFOUND = false;
@@ -1556,6 +1709,11 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
               'stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/>'+
               '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>'+
               '<path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5"/></svg>Share</button>'+
+            '<button class="pc-share" onclick="duelFrom(\\''+esc(login)+'\\')">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '+
+              'stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5 20 9l-9.5 9.5"/>'+
+              '<path d="M4 20l5.5-5.5"/><path d="M3.5 3.5 9 9l-4.5 4.5"/></svg>Duel</button>'+
+            '<span class="pc-duelhint">'+(ME_WHO && ME_WHO.login !== login ? 'you vs them' : 'vs the rank above')+'</span>'+
             '<a class="pc-github" href="https://github.com/'+encodeURIComponent(login)+'" '+
               'target="_blank" rel="noopener">GitHub \\u2197</a>'+
           '</div>'+
@@ -2757,10 +2915,278 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
     // the invite card's deliberate frosted-glass reveal only.
     else if (CODE && ROOM) crumb.innerHTML = esc(ROOM.room.name);
     else if (CODE) crumb.textContent = 'Room';
+    else if (DUEL) crumb.textContent = 'duel';
     else if (CHARTPG) crumb.textContent = 'the weekly 25';
     else crumb.textContent = 'Global';
     document.getElementById('segAll').className = mode==='allTime' ? 'on' : '';
     document.getElementById('segToday').className = mode==='today' ? 'on' : '';
+  }
+
+  // ---- duel: the challenge feature ---------------------------------------
+  // Any two players on the board can be put head to head at /duel/<a>-vs-<b>.
+  // Six stats are rated 45-99 against the current board leader (FUT-style),
+  // the winner takes the most stats; ties break on overall. Every number comes
+  // from the same board payload the leaderboard uses - nothing extra to fetch.
+  const DSTATS = [
+    { k: 'PMT', lab: 'prompts',       f: function(r){ return r.prompts || 0; } },
+    { k: 'EDT', lab: 'edits',         f: function(r){ return r.edits || 0; } },
+    { k: 'LNS', lab: 'lines shipped', f: function(r){ return r.lines || 0; } },
+    { k: 'BRN', lab: '~$ burned',     f: function(r){ return r.usd || 0; } },
+    { k: 'STK', lab: 'win streak',    f: function(r){ return r.streak || 0; } },
+    { k: 'REC', lab: 'receipts',      f: function(r){ return dRecs(r); } }
+  ];
+  const DWEIGHT = { PMT: .22, EDT: .22, LNS: .18, BRN: .14, STK: .12, REC: .12 };
+  const DROLE3 = { 'ONE-SHOT': '1S', 'CONDUCTOR': 'CND', 'ENGINE': 'ENG', 'HEAVY LIFTER': 'HVY' };
+  function dRecs(r){
+    return (r.records || []).reduce(function(t, x){ return t + (x.n || 0); }, 0);
+  }
+  let dMaxMemo = null, dMaxKey = '';
+  function dMax(k){
+    const rows = (GLOBAL && GLOBAL.allTime) || [];
+    const key = rows.length + ':' + ((rows[0] && rows[0].score) || 0);
+    if (dMaxKey !== key){
+      dMaxKey = key; dMaxMemo = {};
+      DSTATS.forEach(function(st){
+        dMaxMemo[st.k] = Math.max.apply(null, [1].concat(rows.map(st.f)));
+      });
+    }
+    return dMaxMemo[k] || 1;
+  }
+  function dRate(r, st){
+    return Math.round(45 + 54 * Math.sqrt(Math.min(1, st.f(r) / dMax(st.k))));
+  }
+  function dOvr(r){
+    return Math.round(DSTATS.reduce(function(t, st){
+      return t + dRate(r, st) * DWEIGHT[st.k]; }, 0));
+  }
+  function dRole(r){
+    const p = r.prompts || 0, e = r.edits || 0, l = r.lines || 0;
+    if (l / Math.max(1, e) >= 60) return 'HEAVY LIFTER';
+    const ratio = e / Math.max(1, p);
+    return ratio >= 2.4 ? 'ONE-SHOT' : ratio <= 1.4 ? 'CONDUCTOR' : 'ENGINE';
+  }
+  const DSTYLE = { 'ONE-SHOT': 'Explosive', 'CONDUCTOR': 'Orchestral',
+                   'ENGINE': 'Relentless', 'HEAVY LIFTER': 'Massive' };
+
+  // The card frame: one symmetric path (right half mirrored in code so it can
+  // never go lopsided) + concentric strokes for even gold trim, sunburst rays
+  // and engraved texture inside. Pure SVG, no images, so it stays crisp.
+  const DRHALF = [[200,26],[252,26],[262,40],[306,40],[316,54],[352,54],[362,68],[356,340],
+                  [368,356],[368,378],[352,394],[352,418],[206,552],[200,558]];
+  const DOUT = DRHALF.concat(DRHALF.slice(1, -1).reverse().map(function(pt){ return [400-pt[0], pt[1]]; }));
+  const DSHIELD = 'M ' + DOUT.map(function(pt){ return pt.join(' '); }).join(' L ') + ' Z';
+  const DWING = [[310,16],[396,50],[386,112],[336,58]];
+  const DGEM = [[200,2],[215,15],[200,28],[185,15]];
+  function dPolyStr(pts){ return pts.map(function(pt){ return pt.join(','); }).join(' '); }
+  function dRays(id){
+    let out = '';
+    for (let i = 0; i < 11; i++){
+      const ang = (-172 + i * 16.5) * Math.PI / 180;
+      const tx = 200 + 250 * Math.cos(ang), ty = 172 + 250 * Math.sin(ang);
+      const px = -Math.sin(ang) * 10, py = Math.cos(ang) * 10;
+      out += '<polygon points="200,172 ' + (tx+px).toFixed(1) + ',' + (ty+py).toFixed(1) + ' ' +
+        (tx-px).toFixed(1) + ',' + (ty-py).toFixed(1) + '" fill="url(#dg3' + id + ')" opacity="' +
+        (i % 2 ? '.30' : '.13') + '"/>';
+    }
+    return out;
+  }
+  function dFrameSvg(id){
+    const wing = function(pts){
+      return '<polygon points="' + dPolyStr(pts) + '" fill="url(#dg1' + id +
+        ')" stroke="#241a0c" stroke-width="1.5"/>'; };
+    return '<svg class="cardsvg" viewBox="0 0 400 560" aria-hidden="true">' +
+      '<defs>' +
+      '<linearGradient id="dg1' + id + '" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="#F4DCA0"/><stop offset=".3" stop-color="#E6B655"/>' +
+        '<stop offset=".55" stop-color="#8a6c2e"/><stop offset=".78" stop-color="#E6B655"/>' +
+        '<stop offset="1" stop-color="#a3803a"/></linearGradient>' +
+      '<linearGradient id="dg2' + id + '" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#2E2517"/><stop offset=".5" stop-color="#201810"/>' +
+        '<stop offset="1" stop-color="#171208"/></linearGradient>' +
+      '<linearGradient id="dg3' + id + '" x1="0" y1="1" x2="1" y2="0">' +
+        '<stop offset="0" stop-color="#E6B655" stop-opacity="0"/>' +
+        '<stop offset="1" stop-color="#F4DCA0" stop-opacity=".9"/></linearGradient>' +
+      '<radialGradient id="dg4' + id + '" cx=".54" cy=".28" r=".55">' +
+        '<stop offset="0" stop-color="#E6B655" stop-opacity=".22"/>' +
+        '<stop offset="1" stop-color="#E6B655" stop-opacity="0"/></radialGradient>' +
+      '<pattern id="dgd' + id + '" width="26" height="26" patternUnits="userSpaceOnUse">' +
+        '<circle cx="13" cy="13" r="1.5" fill="rgba(230,182,85,.06)"/>' +
+        '<circle cx="0" cy="0" r="1.5" fill="rgba(230,182,85,.045)"/></pattern>' +
+      '<pattern id="dgl' + id + '" width="7" height="7" patternUnits="userSpaceOnUse" ' +
+        'patternTransform="rotate(45)"><rect width="7" height="1" fill="rgba(230,182,85,.035)"/></pattern>' +
+      '<clipPath id="dgc' + id + '"><path d="' + DSHIELD + '"/></clipPath>' +
+      '</defs>' +
+      wing(DWING) + wing(DWING.map(function(pt){ return [400-pt[0], pt[1]]; })) +
+      '<path d="' + DSHIELD + '" fill="url(#dg2' + id + ')"/>' +
+      '<g clip-path="url(#dgc' + id + ')">' +
+        '<rect width="400" height="560" fill="url(#dgl' + id + ')"/>' +
+        '<rect width="400" height="560" fill="url(#dgd' + id + ')"/>' +
+        '<rect width="400" height="560" fill="url(#dg4' + id + ')"/>' + dRays(id) +
+      '</g>' +
+      '<path d="' + DSHIELD + '" fill="none" stroke="url(#dg1' + id + ')" stroke-width="10"/>' +
+      '<path d="' + DSHIELD + '" fill="none" stroke="#171208" stroke-width="5"/>' +
+      '<path d="' + DSHIELD + '" fill="none" stroke="url(#dg1' + id + ')" stroke-width="2"/>' +
+      '<polygon points="' + dPolyStr(DGEM) + '" fill="url(#dg1' + id + ')" ' +
+        'stroke="#241a0c" stroke-width="1.5"/>' +
+      '</svg>';
+  }
+  function futCardHtml(r, won){
+    const id = String(r.login).replace(/[^a-zA-Z0-9]/g, '');
+    const st = DSTATS.map(function(s, i){
+      return '<div class="fst" style="grid-column:' + (i % 2 ? 3 : 1) + '"><b>' +
+        dRate(r, s) + '</b><i>' + s.k + '</i></div>'; }).join('');
+    const MARK = '<svg class="fcmark" viewBox="106 106 300 300" aria-hidden="true">' +
+      '<g fill="#8a7a5e"><rect x="118" y="318" width="76" height="76" rx="19"/>' +
+      '<rect x="118" y="218" width="76" height="76" rx="19"/>' +
+      '<rect x="318" y="318" width="76" height="76" rx="19"/></g>' +
+      '<g fill="#D97757"><rect x="218" y="318" width="76" height="76" rx="19"/>' +
+      '<rect x="218" y="218" width="76" height="76" rx="19"/>' +
+      '<rect x="218" y="118" width="76" height="76" rx="19"/></g></svg>';
+    const src = r.avatar || ('https://github.com/' + encodeURIComponent(r.login) + '.png?size=200');
+    const crown = r.rank === 1
+      ? '<span class="fccrown">' + crownSvg() + '</span>' : '';
+    return '<div class="fc' + (won ? ' win' : '') + '">' + dFrameSvg(id) +
+      '<img class="fcart" src="' + esc(src) + '" alt="" />' + crown +
+      '<div class="fchead"><div class="fcovr">' + dOvr(r) + '</div>' +
+      '<div class="fcrole">' + DROLE3[dRole(r)] + '</div><div class="fcrule"></div>' +
+      MARK + '<div class="fcrk">#' + (r.rank || '-') + '</div></div>' +
+      '<div class="fcglare"></div>' +
+      '<div class="fclower"><div class="fcnamewrap"><div class="fcname">' +
+      esc(String(r.login).replace(/[-_].*$/, '').slice(0, 10)) + '</div></div>' +
+      '<div class="fcstats"><div class="fcsrule"></div>' + st + '</div></div>' +
+      '<div class="fccrest">CCRANK · 26</div></div>';
+  }
+  function futColHtml(r, won){
+    const pills = (r.awards || []).slice(0, 4).map(function(a){
+      const bd = BADGES[a.key];
+      return bd ? '<span class="award">' + bd.ico + esc(a.label) + '</span>' : ''; }).join('');
+    return '<div class="fcol">' + futCardHtml(r, won) +
+      '<div class="fcsub"><span class="handle">@' + esc(r.login) + ' · <b>' + dRole(r) +
+      '</b> · ' + DSTYLE[dRole(r)] + '</span>' +
+      (pills ? '<div class="fcpills">' + pills + '</div>' : '') + '</div></div>';
+  }
+  // 3D tilt + glare that tracks the pointer (desktop only, pure cosmetics).
+  function bindDuelTilt(){
+    document.querySelectorAll('.fc').forEach(function(card){
+      card.onmousemove = function(e){
+        const b = card.getBoundingClientRect();
+        const x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
+        card.style.transform = 'perspective(950px) rotateY(' + ((x - .5) * 9).toFixed(2) +
+          'deg) rotateX(' + ((.5 - y) * 9).toFixed(2) + 'deg)';
+        card.style.setProperty('--mx', (x * 100) + '%');
+        card.style.setProperty('--my', (y * 100) + '%');
+      };
+      card.onmouseleave = function(){ card.style.transform = ''; };
+    });
+  }
+  function duelHtml(){
+    const rows = (GLOBAL && GLOBAL.allTime) || [];
+    const A = rowOf(DUEL.a), B = rowOf(DUEL.b);
+    if (!A || !B){
+      const miss = !A ? DUEL.a : DUEL.b;
+      return '<section class="card"><div class="duelempty"><b>' + esc(miss) +
+        '</b> isn’t on the board yet.<br><a href="/">Back to the leaderboard</a></div></section>';
+    }
+    const ra = DSTATS.map(function(s){ return dRate(A, s); });
+    const rb = DSTATS.map(function(s){ return dRate(B, s); });
+    let wa = 0, wb = 0;
+    ra.forEach(function(v, i){ if (v > rb[i]) wa++; else if (v < rb[i]) wb++; });
+    const aWins = wa === wb ? dOvr(A) >= dOvr(B) : wa > wb;
+    const ta = ra.reduce(function(x, y){ return x + y; }, 0);
+    const tb = rb.reduce(function(x, y){ return x + y; }, 0);
+    const pa = Math.round(100 * ta / (ta + tb));
+    const bars = DSTATS.map(function(s, i){
+      return '<div class="dsrow"><span class="dsv' + (ra[i] >= rb[i] ? ' w' : '') + '">' + ra[i] + '</span>' +
+        '<span class="dsbar l"><i data-w="' + ra[i] + '"></i></span>' +
+        '<span class="dslab">' + s.k + '</span>' +
+        '<span class="dsbar r"><i data-w="' + rb[i] + '"></i></span>' +
+        '<span class="dsv' + (rb[i] >= ra[i] ? ' w' : '') + '">' + rb[i] + '</span></div>'; }).join('');
+    const recs = DSTATS.map(function(s){
+      const va = s.f(A), vb = s.f(B);
+      const shown = function(v){ return s.k === 'BRN' ? '~$' + Math.round(v) :
+        s.k === 'STK' ? v + 'd' : fmt(v); };
+      return '<div class="drecrow"><b class="l' + (va >= vb ? ' win' : '') + '">' + shown(va) + '</b>' +
+        '<span class="c">' + s.lab + '</span>' +
+        '<b' + (vb >= va ? ' class="win"' : '') + '>' + shown(vb) + '</b></div>'; }).join('');
+    const winner = aWins ? A : B;
+    return '<section class="duelpg">' +
+      '<div class="duelhd"><div class="eyebrow">The duel</div>' +
+        '<div class="duelvs">' +
+          '<a href="/duel/' + encodeURIComponent(B.login) + '-vs-' + encodeURIComponent(A.login) + '">' +
+            esc(A.login) + '</a><span class="vsbolt">VS</span><a href="#" onclick="return dSwap()">' +
+            esc(B.login) + '</a></div></div>' +
+      '<div class="duelstage">' +
+        '<div>' + futColHtml(A, aWins) + '</div>' +
+        '<div class="dmid">' +
+          '<div class="dft">Full time</div>' +
+          '<div class="dscore">' + wa + '<em>–</em>' + wb + '</div>' +
+          '<div class="ddom"><span>' + pa + '%</span><span class="bar"><i id="ddomBar" data-w="' + pa + '%"></i></span>' +
+            '<span>' + (100 - pa) + '%</span></div>' +
+          '<div class="ddomlab">Dominance</div>' +
+          '<div style="margin-top:14px">' + bars + '</div>' +
+          '<div class="dwin"><div class="dft">Most cracked</div>' +
+            '<div class="dwinname">' + esc(winner.login) + '</div>' +
+            '<div class="dwinsub">' + wa + '–' + wb + ' across the six stats</div></div>' +
+          '<div class="drec"><div class="dreccap">— The receipts —</div>' + recs + '</div>' +
+          '<div class="dactions">' +
+            '<button class="dbtn primary" onclick="dShare(event)">Copy duel link</button>' +
+            '<button class="dbtn" onclick="dPick()">Challenge someone else</button>' +
+            '<a class="dbtn" href="/">Back to board</a>' +
+          '</div>' +
+          '<div id="dpick"></div>' +
+        '</div>' +
+        '<div>' + futColHtml(B, !aWins) + '</div>' +
+      '</div></section>';
+  }
+  function dSwap(){
+    location.href = '/duel/' + encodeURIComponent(DUEL.b) + '-vs-' + encodeURIComponent(DUEL.a);
+    return false;
+  }
+  function dShare(ev){
+    const btn = ev && ev.currentTarget;
+    const url = location.origin + '/duel/' + encodeURIComponent(DUEL.a) + '-vs-' + encodeURIComponent(DUEL.b);
+    const flash = function(t){
+      if (!btn) return;
+      const was = btn.textContent; btn.textContent = t;
+      setTimeout(function(){ btn.textContent = was; }, 1600);
+    };
+    navigator.clipboard.writeText(url).then(function(){ flash('Copied!'); },
+      function(){ flash('Couldn\u2019t copy'); });
+  }
+  // Opponent picker: the board, minus whoever is already in this duel.
+  function dPick(){
+    const host = document.getElementById('dpick');
+    if (!host) return;
+    if (host.innerHTML){ host.innerHTML = ''; return; }
+    const rows = ((GLOBAL && GLOBAL.allTime) || []).filter(function(r){
+      return r.login !== DUEL.a; }).slice(0, 24);
+    host.innerHTML = '<div class="chalgrid">' + rows.map(function(r){
+      return '<button class="chal" data-foe="' + esc(r.login) + '">' +
+        avatar(r.login, r.avatar) + esc(r.login) +
+        '<span class="r">' + dOvr(r) + '</span></button>'; }).join('') + '</div>';
+    host.querySelectorAll('.chal').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        location.href = '/duel/' + encodeURIComponent(DUEL.a) + '-vs-' +
+          encodeURIComponent(btn.getAttribute('data-foe'));
+      });
+    });
+  }
+  // "Duel" from a profile card: challenger is the signed-in viewer when we know
+  // them (?me=), otherwise the board leader, so the link always works.
+  function duelFrom(login){
+    const rows = (GLOBAL && GLOBAL.allTime) || [];
+    const me = (ME_WHO && ME_WHO.login) || null;
+    // Looking at someone else and we know who you are -> you vs them.
+    if (me && me !== login) return goDuel(me, login);
+    // Looking at your OWN card -> the rivalry that actually motivates: the
+    // player one rung above you. At #1 there's nobody above, so take the chaser.
+    const i = rows.findIndex(function(r){ return r.login === login; });
+    const foe = i > 0 ? rows[i - 1] : rows[i + 1] || rows.find(function(r){ return r.login !== login; });
+    if (!foe) return;
+    goDuel(login, foe.login);
+  }
+  function goDuel(a, b){
+    location.href = '/duel/' + encodeURIComponent(a) + '-vs-' + encodeURIComponent(b);
   }
 
   // ---- landing hero --------------------------------------------------------
@@ -2951,7 +3377,7 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       return;
     }
     if (!data){ // first fetch still in flight — show skeletons, not a blank page
-      content.innerHTML = (CODE || CHARTPG ? '' : heroHtml()) + skeletonHtml();
+      content.innerHTML = (CODE || CHARTPG || DUEL ? '' : heroHtml()) + skeletonHtml();
       return;
     }
     const rows = (mode === 'today' ? data.today : data.allTime) || [];
@@ -2963,9 +3389,20 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart"):
       ? fmt((data.allTime||[]).length)+' members \\u00B7 ranked by global score'
       : fmt((GLOBAL && GLOBAL.stats || {}).players)+' users \\u00B7 one global score';
 
+    if (DUEL){
+      content.innerHTML = duelHtml();
+      bindDuelTilt();
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){
+        const db = document.getElementById('ddomBar');
+        if (db) db.style.width = db.getAttribute('data-w') || '';
+        document.querySelectorAll('.dsbar i').forEach(function(el){
+          el.style.width = ((+el.getAttribute('data-w') - 40) / 59 * 100) + '%'; });
+      }); });
+      return;
+    }
     const chartBlock = chartHtml(data.series); // sets DIMS.weeks for the header
     content.innerHTML =
-      (CODE || CHARTPG ? '' : heroHtml())+
+      (CODE || CHARTPG || DUEL ? '' : heroHtml())+
       (CODE ? '' : w25Html(GLOBAL && GLOBAL.chart, CHARTPG))+
       '<div class="grid">'+
       // Entrance animations play once; poll repaints swap in place ("quiet")

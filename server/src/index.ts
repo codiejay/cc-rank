@@ -1019,10 +1019,21 @@ const CSP =
   "img-src 'self' https://github.com https://*.githubusercontent.com data:; " +
   "connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
+// Site-level share meta (home + room links): the MOST CRACKED hero card.
+const homeOg = (c: any) => {
+  const origin = new URL(c.req.url).origin;
+  return {
+    login: "",
+    title: "ccrank · who's the most cracked?",
+    desc: "The global leaderboard for Claude Code & Codex. Every prompt and every file edit scores a point — live.",
+    image: origin + "/og/home.png",
+    url: origin,
+  };
+};
 app.get("/", (c) => {
   c.header("Content-Security-Policy", CSP);
   track(c, "page_view", { props: { page: "home" } });
-  return c.html(dashboardHtml(null));
+  return c.html(dashboardHtml(null, homeOg(c)));
 });
 app.get("/r/:code", (c) => {
   c.header("Content-Security-Policy", CSP);
@@ -1030,7 +1041,38 @@ app.get("/r/:code", (c) => {
   // Only a validated code is echoed into the page; anything else -> global board.
   const valid = CODE_RE.test(code);
   track(c, "page_view", { props: valid ? { page: "room", code } : { page: "home" } });
-  return c.html(dashboardHtml(valid ? code : null));
+  return c.html(dashboardHtml(valid ? code : null, homeOg(c)));
+});
+
+// The duel page: /duel/<a>-vs-<b> puts two players head to head. Both logins
+// are LOGIN_RE-validated before they reach the HTML (same defense as /u/:login),
+// and the page itself is the normal dashboard in duel mode — it reads the board
+// payload it already fetches, so no extra API surface and no new D1 queries.
+app.get("/duel/:pair", async (c) => {
+  c.header("Content-Security-Policy", CSP);
+  const raw = c.req.param("pair") || "";
+  const m = /^([A-Za-z0-9-]{1,39})-vs-([A-Za-z0-9-]{1,39})$/.exec(raw);
+  if (!m || !LOGIN_RE.test(m[1]) || !LOGIN_RE.test(m[2]) ||
+      m[1].toLowerCase() === m[2].toLowerCase()) {
+    track(c, "page_view", { props: { page: "home" } });
+    return c.html(dashboardHtml(null, homeOg(c)));
+  }
+  // Resolve to the CANONICAL logins so the page can't echo arbitrary casing.
+  const rows = await c.env.DB.prepare(
+    "SELECT login FROM users WHERE lower(login) IN (?, ?)"
+  ).bind(m[1].toLowerCase(), m[2].toLowerCase()).all();
+  const found = (rows.results as { login: string }[]).map((r) => r.login);
+  const a = found.find((l) => l.toLowerCase() === m[1].toLowerCase()) || m[1];
+  const b = found.find((l) => l.toLowerCase() === m[2].toLowerCase()) || m[2];
+  const origin = new URL(c.req.url).origin;
+  track(c, "page_view", { props: { page: "duel", a, b } });
+  return c.html(dashboardHtml(null, {
+    login: a,
+    title: `${a} vs ${b} · ccrank duel`,
+    desc: `Head to head on the global Claude Code leaderboard: prompts, edits, lines shipped, dollars burned. Who's more cracked?`,
+    image: origin + "/og/home.png",
+    url: origin + "/duel/" + a + "-vs-" + b,
+  }, "duel", { a, b }));
 });
 
 // ---- share cards -----------------------------------------------------------
@@ -1104,6 +1146,52 @@ async function ogPngCached(env: Bindings, d: OgData, ctx: { waitUntil(p: Promise
   if (png) ctx.waitUntil(env.OG_KV.put(key, png, { expirationTtl: 86400 }));
   return png;
 }
+
+// ---- home OG — the site's own unfurl ---------------------------------------
+// The hero card behind sharing the SITE itself (home + room links): MOST
+// CRACKED. headline, live top 3 with avatars, live totals, 30-day heat strip.
+// Rendered by og-service/api/home.js on Vercel; KV-keyed on day + top scores
+// so it stays fresh as the board moves but crawlers get cached bytes fast.
+// Registered before /og/:login so the param route can't swallow "home.png".
+const OG_HOME_RENDERER = "https://og-service-nu.vercel.app/api/home";
+async function homeOgRender(payload: unknown): Promise<ArrayBuffer | null> {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const d64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const res = await fetch(OG_HOME_RENDERER + "?d=" + d64);
+  return res.ok ? await res.arrayBuffer() : null;
+}
+app.get("/og/home.png", async (c) => {
+  const db = c.env.DB;
+  const since = utcDay(Date.now() - 30 * 86400000);
+  const [topRows, stats, heat] = await Promise.all([
+    db.prepare(`
+      SELECT u.login AS login, u.avatar AS avatar, COUNT(*) AS score
+      FROM events e JOIN users u ON u.github_id = e.user_id
+      WHERE e.capped = 0 GROUP BY e.user_id
+      ORDER BY score DESC, u.created_at ASC LIMIT 3`).all(),
+    db.prepare(`
+      SELECT (SELECT COUNT(*) FROM users) AS players,
+             COALESCE(SUM(CASE WHEN kind='prompt' THEN 1 ELSE 0 END),0) AS prompts,
+             COALESCE(SUM(CASE WHEN kind='edit'   THEN 1 ELSE 0 END),0) AS edits
+      FROM events WHERE capped = 0`).first(),
+    db.prepare("SELECT day, COUNT(*) AS n FROM events WHERE capped = 0 AND day >= ? GROUP BY day")
+      .bind(since).all(),
+  ]);
+  const top = (topRows.results as any[]).map((r, i) => ({
+    rank: i + 1, login: r.login, avatar: r.avatar, score: r.score }));
+  if (!top.length) return c.notFound();
+  track(c, "og_card", { props: { login: "@home" } });
+  const key = "og:home:" + utcDay(Date.now()) + ":" + top.map((t) => t.score).join("-");
+  const hit = await c.env.OG_KV.get(key, "arrayBuffer");
+  const png = hit || (await homeOgRender({
+    stats, top, heat: heat.results, site: new URL(c.req.url).host,
+  }));
+  if (!hit && png) c.executionCtx.waitUntil(c.env.OG_KV.put(key, png, { expirationTtl: 86400 }));
+  return chartPng(c, png);
+});
 
 // The PNG itself: KV-first, render on miss.
 // The Monday poster: most-cracked spotlight + rows 2-10 with movement. MUST be

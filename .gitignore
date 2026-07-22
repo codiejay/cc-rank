@@ -7,3 +7,4 @@ dist/
 
 # D1 exports — contain prod data (hashed tokens, logins). NEVER commit.
 backup-*.sql
+.vercel
