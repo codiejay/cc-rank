@@ -9,6 +9,17 @@ type Bindings = { DB: D1Database; OG_KV: KVNamespace };
 const app = new Hono<{ Bindings: Bindings }>();
 app.use("/api/*", cors());
 
+// www + workers.dev -> apex, permanent: one canonical origin for links, OG
+// cards, sessions (OAuth callbacks only know mostcracked.com), and SEO.
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.hostname.startsWith("www.") || url.hostname.endsWith(".workers.dev")) {
+    url.hostname = "mostcracked.com";
+    return c.redirect(url.toString(), 301);
+  }
+  await next();
+});
+
 // ---- helpers -------------------------------------------------------------
 
 // Unambiguous alphabet (no O/0/I/1) for easy sharing over voice/text.
@@ -1014,10 +1025,16 @@ app.get("/apple-touch-icon.png", (c) =>
 // renders the global board, never reaching the HTML). What CSP buys here:
 // script-src 'self' blocks INJECTED external scripts, and frame-ancestors
 // 'none' blocks clickjacking. img-src allows GitHub avatars + the data: favicon.
+// style/font: Saira Condensed for the duel cards. connect: the save-card PNG
+// export fetches the avatar + font bytes to inline them into its SVG.
 const CSP =
-  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+  "font-src 'self' https://fonts.gstatic.com; " +
   "img-src 'self' https://github.com https://*.githubusercontent.com data:; " +
-  "connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+  "connect-src 'self' https://*.githubusercontent.com https://github.com " +
+    "https://fonts.googleapis.com https://fonts.gstatic.com; " +
+  "base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
 // Site-level share meta (home + room links): the MOST CRACKED hero card.
 const homeOg = (c: any) => {

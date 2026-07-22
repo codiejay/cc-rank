@@ -2,6 +2,18 @@ name = "ccrank"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
+# Declaring routes flips wrangler's workers.dev default to off — keep the
+# preview host alive explicitly; the worker 301s it to the canonical domain.
+workers_dev = true
+
+# Both hosts as Workers custom domains (wrangler creates DNS records + certs;
+# re-declaring the dashboard-attached apex is idempotent). The worker itself
+# 301s www -> apex so there is one canonical origin.
+routes = [
+  { pattern = "mostcracked.com", custom_domain = true },
+  { pattern = "www.mostcracked.com", custom_domain = true }
+]
+
 # After you run `wrangler d1 create ccrank`, paste the printed database_id below.
 [[d1_databases]]
 binding = "DB"
