@@ -29,7 +29,7 @@ rm -rf ~/.ccrank && mv ~/.ccrank.bak ~/.ccrank 2>/dev/null || true
 ## B. Adversarial re-test against PROD (replace $SRV)
 
 ```bash
-SRV=https://ccrank.ccrank.workers.dev
+SRV=https://mostcracked.com
 ```
 
 - [ ] **XSS:** `curl -s "$SRV/r/%3C%2FSCRIPT%3EX" | grep -o 'let CODE = [^;]*;'` → must be `let CODE = null;` (no raw `</SCRIPT>`)

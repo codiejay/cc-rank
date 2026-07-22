@@ -105,7 +105,7 @@ function footer(left) {
         padding: "13px 22px", marginTop: "auto" }, [
     txt({ fontWeight: 700, fontSize: 17, color: CORAL }, left),
     txt({ marginLeft: "auto", fontWeight: 600, fontSize: 17, color: "#857D70" },
-        "ccrank.ccrank.workers.dev"),
+        "mostcracked.com"),
     div({ width: 10, height: 19, background: CORAL, marginLeft: 8 }),
   ]);
 }

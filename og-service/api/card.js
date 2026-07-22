@@ -187,7 +187,7 @@ function card(d, avatar) {
           txt({ fontWeight: 600, fontSize: 18, color: "#A99F8F" },
               `${fmt(row.prompts)} prompts · ${fmt(row.edits)} edits`),
           txt({ marginLeft: "auto", fontWeight: 600, fontSize: 18, color: "#857D70" },
-              "ccrank.ccrank.workers.dev"),
+              "mostcracked.com"),
           div({ width: 10, height: 20, background: "#D97757", marginLeft: 8 }),
         ]),
       ]),

@@ -25,7 +25,7 @@ const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 const CODEX_HOOKS = join(homedir(), ".codex", "hooks.json"); // Codex reads lifecycle hooks here
 
 // Default server. Overridable with --server <url> or CCRANK_SERVER env.
-const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://ccrank.ccrank.workers.dev";
+const DEFAULT_SERVER = process.env.CCRANK_SERVER || "https://mostcracked.com";
 
 // GitHub OAuth app client id for the device flow (public by design, not a
 // secret — it only identifies the "ccrank" OAuth app). Overridable for forks.
