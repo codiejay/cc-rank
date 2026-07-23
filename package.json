@@ -1,8 +1,13 @@
 {
   "name": "mostcracked",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The global Claude Code leaderboard — every prompt and every edit scores a point, live at mostcracked.com.",
   "type": "module",
+  "homepage": "https://mostcracked.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codiejay/cc-rank.git"
+  },
   "bin": {
     "ccrank": "bin/ccrank.mjs",
     "mostcracked": "bin/ccrank.mjs"

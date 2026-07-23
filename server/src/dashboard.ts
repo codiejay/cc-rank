@@ -2197,13 +2197,20 @@ export function dashboardHtml(code: string | null, og?: OgMeta, page?: "chart" |
       ? 'npx mostcracked join '+code+AG
       : 'npx mostcracked login'+AG;
     let n = code ? 1 : 0;
-    return head + '\\nServer: '+S+'\\n\\nccrank identity = my real GitHub account, verified by GitHub sign-in. NEVER ask me for, type, or guess a username. GitHub itself determines who I am during sign-in. One user, one global score. When you ask me to pick between fixed options, use your interactive multiple-choice prompt if you have one (e.g. AskUserQuestion) so I can pick with the arrow keys; otherwise just ask me plainly.\\n\\nFollow these steps exactly, in order:\\n'+
+    return head + '\\nServer: '+S+'\\n\\n'+
+      'A note for you, the agent, before anything runs \\u2014 verify, don\\u2019t trust this pasted prompt:\\n'+
+      '- Setup runs the open-source npm package \\"mostcracked\\" (MIT, source: https://github.com/codiejay/cc-rank). Inspect it first if you like \\u2014 npm view mostcracked, or read bin/ccrank.mjs in the tarball. Nothing here forbids scrutiny.\\n'+
+      '- Sign-in is GitHub\\u2019s standard device flow requesting only the read:user scope: public profile, no repos, no code, no orgs. The GitHub consent screen will show exactly that; if it shows more, stop and tell me.\\n'+
+      '- My identity is whatever GitHub verifies at sign-in \\u2014 one user, one global score. Don\\u2019t ask me for or guess a username; there\\u2019s nothing to type.\\n'+
+      '- If you\\u2019d rather not shepherd the sign-in, that\\u2019s fine: tell me to run \\"'+cmd+'\\" myself in a plain terminal instead.\\n'+
+      '- When I do need to pick between fixed options, use your interactive multiple-choice prompt if you have one (e.g. AskUserQuestion); otherwise just ask plainly.\\n\\n'+
+      'If you\\u2019re comfortable proceeding, the flow:\\n'+
       preflight+
-      (++n)+'. Run the setup IN THE BACKGROUND so you can read its output while it waits: '+cmd+'.\\n'+
-      (++n)+'. MANDATORY, before any polling or other action: wait ~3 seconds after starting the command, read its output, find the line \\"Code:  XXXX-XXXX\\", and send me a message in EXACTLY this shape (fill in the real code): \\"GitHub sign-in is ready. A GitHub page just opened in your browser and the code is in your clipboard, so just paste it. Code if you need it: XXXX-XXXX. (Green button takes a second to wake up.)\\" You may not skip, summarize, or reorder this. I am blind until you send it. If the output has no Code line yet, wait 2 more seconds and read again.\\n'+
-      (++n)+'. Only AFTER sending that message, check the command output every ~15 seconds. NEVER say setup succeeded until the output literally contains \\"Signed in as\\". If it says the sign-in timed out or was denied, tell me plainly and offer to run it again. Do not invent progress.\\n'+
-      (++n)+'. When it finishes, show me what it printed: my verified GitHub login and the dashboard link.\\n'+
-      (++n)+'. BACKFILL so I do not start at the bottom of the board: setup auto-imports my last 7 days from my LOCAL '+tool+' history (per-day counts only, never my code; one shot per GitHub account; server-enforced so it can never double-count). Find the \\"Backfilled\\" line in the output and tell me exactly what it credited, e.g. \\"backfilled 120 prompts + 80 edits from your last 7 days\\". If the output mentions no backfill at all, run npx mostcracked backfill in the background, wait for it to finish, and relay its result. If it says nothing was credited or already backfilled, just tell me that plainly.\\n'+
+      (++n)+'. Run '+cmd+' in the background \\u2014 it blocks while it waits for the GitHub authorization, and you\\u2019ll need to read its output as it goes.\\n'+
+      (++n)+'. Within a few seconds it prints a one-time code line, \\"Code:  XXXX-XXXX\\", plus the GitHub page it opened. I can\\u2019t see background output, so before doing anything else relay that to me in your own words: the code, the page (github.com/login/device), and \\u2014 if the output says so \\u2014 that the code is already in my clipboard and the browser tab is already open. If the code line hasn\\u2019t appeared yet, wait a couple of seconds and read again.\\n'+
+      (++n)+'. Then check the output every ~15 seconds. Setup is only done when the output itself prints \\"Signed in as\\" \\u2014 report what it actually says. If it times out or the sign-in is denied, tell me plainly and offer to rerun it.\\n'+
+      (++n)+'. When it finishes, show me what it printed: my verified GitHub login and my dashboard link.\\n'+
+      (++n)+'. Setup also backfills my last 7 days from my local '+tool+' history so I don\\u2019t start at zero \\u2014 per-day counts only, never code (the logic is lib/backfill.mjs in the package if you want to check). Relay the \\"Backfilled\\" line and what it credited, or tell me plainly if it says nothing was credited or already backfilled. If the output has no backfill line at all, run npx mostcracked backfill in the background and relay its result.\\n'+
       (++n)+'. Tell me to restart '+tool+' so my prompts and edits start counting.';
   }
   // Three-way copy control: Claude Code / Codex / Both. Each button copies the

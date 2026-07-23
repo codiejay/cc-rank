@@ -163,6 +163,10 @@ async function deviceFlowToken() {
   console.log(`\n    Code:  ${c.y(start.user_code)}${copied ? c.dim("  (copied to clipboard)") : ""}`);
   console.log(`    Page:  ${c.b(uri)}${opened ? c.dim("  (already open)") : ""}`);
   console.log(c.dim(`\n  Tip: GitHub's green Authorize button wakes up after a second or two.`));
+  // Addressed to coding agents running us in the background: the human can't
+  // see this output until the agent relays it.
+  console.log(c.dim(`  If you're a coding agent running this in the background: your user can't see`));
+  console.log(c.dim(`  this output — relay the code and page above to them now, in your own words.`));
   console.log(c.dim(`  Waiting for you to authorize (Ctrl-C to abort)…`));
 
   let interval = (start.interval || 5) * 1000;
